@@ -1,0 +1,305 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<!-- The Lab's graphics stage. Rendered frame by frame by tools/build.py:
+     window.setup(timeline) once, then window.renderAt(t) for every frame.
+     Every component reads the kit (fonts, colours, moves) — nothing is hard-coded. -->
+<style id="fontfaces"></style>
+<link rel="stylesheet" href="visuals.css">
+<script src="visuals.js"></script>
+<style>
+  html, body { margin: 0; background: transparent; }
+  #stage { position: relative; width: 1080px; height: 1920px; overflow: hidden; }
+  .layer { position: absolute; inset: 0; pointer-events: none; }
+
+  /* captions */
+  .cap { position: absolute; left: 90px; right: 90px; text-align: center; line-height: 1.12;
+         font-family: var(--cap-font); font-size: var(--cap-size); font-weight: var(--cap-weight); }
+  .cap .w { display: inline-block; position: relative; margin: 0 0.1em; color: var(--cap-text);
+            -webkit-text-stroke: var(--cap-stroke) var(--cap-outline); paint-order: stroke fill;
+            text-transform: var(--cap-case); text-shadow: 0 6px 18px var(--shadow); }
+  .cap .w.active { color: var(--cap-active); }
+  .cap .w.hl { color: var(--ink); -webkit-text-stroke: 0; text-shadow: none; }
+  .cap .w.hl::before { content: ""; position: absolute; left: -0.18em; right: -0.18em; top: 0.08em; bottom: 0.02em;
+                       background: var(--hl); border-radius: 0.18em; z-index: -1; transform: rotate(var(--hl-tilt)); }
+  .cap .w .it { font-family: var(--italic-font); }
+
+  /* hook card */
+  .hook { position: absolute; left: 50%; top: 150px; width: 860px; box-sizing: border-box; padding: 34px 44px 40px;
+          background: var(--hook-bg); color: var(--hook-text); border-radius: var(--radius); text-align: center;
+          box-shadow: 0 18px 50px var(--shadow-soft); transform-origin: 50% 50%; }
+  /* bare hook: no card, outlined type straight on the video */
+  .hook.bare { background: none; box-shadow: none; color: var(--cap-text); }
+  .hook.bare .head { -webkit-text-stroke: calc(var(--cap-stroke) * 1.1) var(--cap-outline); paint-order: stroke fill;
+                     text-shadow: 0 8px 24px var(--shadow); }
+  .hook.bare .eyebrow { display: inline-block; background: var(--hook-bg); color: var(--hook-text); padding: 8px 18px;
+                        border-radius: 999px; opacity: 1; }
+  .hook .eyebrow { font-family: var(--label-font); font-weight: 600; font-size: 26px; letter-spacing: 0.22em;
+                   text-transform: uppercase; opacity: 0.85; margin-bottom: 14px; }
+  .hook .head { font-family: var(--display-font); font-weight: var(--display-weight); font-size: var(--hook-size); line-height: 0.98;
+                letter-spacing: -0.01em; text-transform: var(--hook-case); }
+  .hook .head em { font-family: var(--italic-font); font-style: normal; position: relative; z-index: 0; display: inline-block; }
+  .hook .head em::before { content: ""; position: absolute; left: -0.1em; right: -0.1em; top: 0.18em; bottom: 0.0em;
+                           background: var(--hl); border-radius: 0.14em; z-index: -1; transform: rotate(-2deg); }
+
+  /* statement (full-screen big text moment) */
+  .statement { position: absolute; inset: 0; background: var(--st-bg); display: flex; align-items: center; justify-content: center; }
+  .statement .txt { width: 900px; text-align: center; color: var(--st-text); font-family: var(--poster-font);
+                    font-weight: var(--poster-weight); font-size: 168px; line-height: 0.92; text-transform: var(--st-case); letter-spacing: -0.01em; }
+  .statement .txt em { font-style: normal; color: var(--ink); position: relative; z-index: 0; display: inline-block; padding: 0 0.08em; }
+  .statement .txt em::before { content: ""; position: absolute; inset: 0.06em -0.02em 0.02em; background: var(--st-hl);
+                               border-radius: 0.1em; z-index: -1; transform: rotate(-2.5deg); }
+
+  /* ticket-stub label */
+  .label { position: absolute; left: 50%; top: 1500px; width: 820px; box-sizing: border-box; padding: 18px 30px;
+           background: var(--label-bg); color: var(--label-text); border-radius: calc(var(--radius) / 2);
+           border-top: 3px solid var(--label-text); border-bottom: 3px solid var(--label-text);
+           display: flex; justify-content: space-between; align-items: center;
+           font-family: var(--label-font); font-weight: 600; font-size: 28px; letter-spacing: 0.2em; text-transform: uppercase;
+           box-shadow: 0 10px 30px var(--shadow-soft); }
+  .label .star { font-size: 30px; letter-spacing: 0; }
+  /* pill label: a compact rounded tag instead of the ticket stub */
+  .label.pill { width: auto; border: none; border-radius: 999px; padding: 16px 34px; gap: 22px; white-space: nowrap; }
+  /* cover title (thumbnail) */
+  .cover { position: absolute; left: 50%; width: 920px; transform: translateX(-50%) rotate(-1.5deg); box-sizing: border-box;
+           padding: 40px 50px 48px; background: var(--hook-bg); color: var(--hook-text); border-radius: var(--radius); text-align: center;
+           box-shadow: 0 24px 60px var(--shadow-soft); }
+  .cover .eyebrow { font-family: var(--label-font); font-weight: 600; font-size: 30px; letter-spacing: 0.22em;
+                    text-transform: uppercase; opacity: 0.85; margin-bottom: 16px; }
+  .cover .head { font-family: var(--display-font); font-weight: var(--display-weight); text-transform: var(--hook-case); font-size: calc(var(--hook-size) * 1.35); line-height: 0.95; letter-spacing: -0.01em; }
+  .cover .head em { font-family: var(--italic-font); font-style: normal; position: relative; z-index: 0; display: inline-block; }
+  .cover .head em::before { content: ""; position: absolute; left: -0.08em; right: -0.08em; top: 0.18em; bottom: 0.0em;
+                            background: var(--hl); border-radius: 0.14em; z-index: -1; transform: rotate(-2deg); }
+  /* behind the speaker (drawn in its own pass; the person is layered back on top) */
+  .behind-txt { position: absolute; left: 0; right: 0; text-align: center; font-family: var(--poster-font); font-weight: 700;
+                text-transform: uppercase; color: var(--st-text); line-height: 0.86; letter-spacing: -0.01em;
+                text-shadow: 0 10px 40px var(--shadow-soft); }
+  .behind-txt em { font-style: normal; color: var(--hl); }
+  .behind-img { position: absolute; inset: 0; background-size: cover; background-position: center; }
+  .behind-tint { position: absolute; inset: 0; background: var(--st-bg); }
+</style>
+</head>
+<body>
+<div id="stage">
+  <div class="layer" id="L-behind"></div>
+  <div class="layer" id="L-statement"></div>
+  <div class="layer" id="L-visuals"></div>
+  <div class="layer" id="L-captions"></div>
+  <div class="layer" id="L-hook"></div>
+  <div class="layer" id="L-label"></div>
+  <div class="layer" id="L-cover"></div>
+</div>
+<script>
+let TL = null;
+
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+const ease = x => 1 - Math.pow(1 - clamp(x, 0, 1), 3);              // ease-out cubic
+const back = x => { x = clamp(x, 0, 1); const c = 1.6; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
+const esc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+// *word* → italic emphasis, the brand's roman/italic mix
+const rich = s => esc(s).replace(/\*([^*]+)\*/g, (m, g) => g.split(/\s+/).map(w => `<em>${w}</em>`).join(' '));
+
+window.setup = function (timeline) {
+  TL = timeline;
+  window.TL = TL;
+  const k = TL.kit, C = k.colors, R = k.roles, F = k.fonts;
+  const col = name => C[name] || name;
+  const ff = [];
+  // each role gets its own face name, so two weights of one family never clash
+  for (const [role, f] of Object.entries(F)) {
+    if (f.url) ff.push(`@font-face{font-family:"lab-${role}";src:url("${f.url}");}`);
+  }
+  document.getElementById('fontfaces').textContent = ff.join('\n');
+  const fam = r => F[r].url ? `"lab-${r}", "${F[r].family}", serif` : `"${F[r].family}", serif`;
+  const S = Object.assign({ caption_outline: 14, caption_case: 'none', hook: 'card', hook_size: 92, hook_case: 'none',
+                            statement_case: 'uppercase', label: 'ticket', label_mark: '✳', radius: 28,
+                            shadow: 'rgba(40, 8, 4, 0.55)', shadow_soft: 'rgba(30, 10, 5, 0.28)' }, k.style || {});
+  TL.S = S;
+  const s = document.documentElement.style;
+  const cap = k.captions;
+  s.setProperty('--cap-font', fam(cap.font));
+  s.setProperty('--cap-weight', F[cap.font].weight || 700);
+  s.setProperty('--cap-stroke', S.caption_outline + 'px');
+  s.setProperty('--cap-case', S.caption_case);
+  s.setProperty('--hook-size', S.hook_size + 'px');
+  s.setProperty('--hook-case', S.hook_case);
+  s.setProperty('--st-case', S.statement_case);
+  s.setProperty('--radius', S.radius + 'px');
+  s.setProperty('--shadow', S.shadow);
+  s.setProperty('--shadow-soft', S.shadow_soft);
+  s.setProperty('--display-weight', F.display.weight || 500);
+  s.setProperty('--poster-weight', (F.poster || F.display_bold).weight || 700);
+  s.setProperty('--cap-size', cap.size + 'px');
+  s.setProperty('--cap-text', col(R.caption_text));
+  s.setProperty('--cap-outline', col(R.caption_outline));
+  s.setProperty('--cap-active', col(R.caption_active));
+  s.setProperty('--ink', col(R.ink || 'espresso') || '#222');
+  s.setProperty('--hl', col(R.highlight_blocks[0]));
+  s.setProperty('--hl-tilt', (k.moves.highlighter_blocks ? -2 : 0) + 'deg');
+  s.setProperty('--display-font', fam('display'));
+  s.setProperty('--italic-font', fam('italic'));
+  s.setProperty('--poster-font', fam(F.poster ? 'poster' : 'display_bold'));
+  s.setProperty('--label-font', `"${F.label.family}", sans-serif`);
+  s.setProperty('--hook-bg', col(R.hook_card));
+  s.setProperty('--hook-text', col(R.hook_text));
+  s.setProperty('--st-bg', col(R.statement_bg));
+  s.setProperty('--st-text', col(R.statement_text));
+  s.setProperty('--st-hl', col(R.highlight_blocks[1] || R.highlight_blocks[0]));
+  s.setProperty('--label-bg', col(R.label_bg));
+  s.setProperty('--label-text', col(R.label_text));
+  window.setupVisuals(TL);
+  return document.fonts.ready.then(() => true);
+};
+
+function active(ev, t) { return t >= ev.start && t < ev.end; }
+
+function renderCaptions(t, hidden) {
+  const el = document.getElementById('L-captions');
+  if (hidden) { el.innerHTML = ''; return 'c:-'; }
+  const chunk = TL.captions.find(c => t >= c.start && t < c.end);
+  if (!chunk) { el.innerHTML = ''; return 'c:-'; }
+  // a word / number / strike / step pop-up already shows these words: don't say them twice on screen
+  const norm = x => String(x).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim().split(' ').filter(w => w.length > 2);
+  const capWords = new Set(chunk.words.flatMap(w => norm(w.w)));
+  const dup = (TL.visuals || []).some(v => ['word', 'number', 'strike', 'step'].includes(v.kind) && t >= v.start && t < v.end
+    && norm([v.text, v.value, v.label, v.pre].filter(Boolean).join(' ')).some(w => capWords.has(w)));
+  if (dup) { el.innerHTML = ''; return 'c:dup'; }
+  const mode = TL.kit.captions.mode;
+  let key = 'c:' + chunk.start;
+  const words = chunk.words.map((w, i) => {
+    const on = t >= w.s;
+    const cur = on && (i === chunk.words.length - 1 || t < chunk.words[i + 1].s);
+    if (mode === 'word' && !cur) return null;
+    const cls = ['w'];
+    if (mode === 'karaoke' && cur) cls.push('active');
+    if (w.hl) cls.push('hl');
+    key += (cur ? '!' : on ? '+' : '.');
+    const vis = mode === 'phrase' || mode === 'word' ? 1 : (on ? 1 : 0.55);
+    return `<span class="${cls.join(' ')}" style="opacity:${vis}">${esc(w.w)}</span>`;
+  }).filter(Boolean).join(' ');
+  // pop the chunk in over its first 120 ms
+  const p = ease((t - chunk.start) / 0.12);
+  key += ':' + Math.round(p * 10);
+  // below the chin: the kit's position, pushed down if the face reaches lower (TL.safe from faces.py)
+  let y = TL.kit.captions.position_y * 1920;
+  const below = TL.safe && TL.safe.face_bottom ? Math.min(TL.safe.face_bottom + 150, 1920 * 0.84) : y;
+  if (TL.safe && TL.safe.face_bottom) y = Math.min(Math.max(y, TL.safe.face_bottom + 150), 1920 * 0.84);
+  // "auto": small captions above the head, moving below the chin when a hook or a pop-up uses the top
+  const busy = TL._busy || new Set();
+  if (TL.kit.captions.position === 'auto' && TL.safe && TL.safe.face_top) {
+    // decided once for the whole caption, so it never jumps mid-phrase when a pop-up ends
+    const overlaps = (a, b) => a.start < chunk.end && b > chunk.start;
+    const topTaken = TL.events.some(e => ['hook', 'behind', 'statement'].includes(e.type) && overlaps(e, e.end))
+      || (TL.visuals || []).some(v => window.visualUsesTop(v) && overlaps(v, v.end));
+    y = topTaken ? below : Math.max(TL.safe.face_top - 150, 120);
+  }
+  if (busy.has('chest') && Math.abs(y - below) < 5) y = Math.max(TL.safe ? TL.safe.face_top - 150 : 300, 120);
+  el.innerHTML = `<div class="cap" style="top:${y}px; transform: translateY(-50%) scale(${0.92 + 0.08 * p}); opacity:${p}">${words}</div>`;
+  return key;
+}
+
+function renderHook(t) {
+  const el = document.getElementById('L-hook');
+  const ev = TL.events.find(e => e.type === 'hook' && active(e, t));
+  if (!ev) { el.innerHTML = ''; return 'h:-'; }
+  const pin = back((t - ev.start) / 0.35), pout = ease((ev.end - t) / 0.2);
+  const p = Math.min(pin, pout);
+  const tilt = -(TL.kit.moves.tilt_degrees ? TL.kit.moves.tilt_degrees[0] : 0);
+  el.innerHTML = `<div class="hook${TL.S.hook === 'bare' ? ' bare' : ''}" style="transform: translateX(-50%) rotate(${tilt}deg) scale(${0.85 + 0.15 * p}); opacity:${clamp(p, 0, 1)}">
+      ${ev.eyebrow ? `<div class="eyebrow">${esc(ev.eyebrow)}</div>` : ''}
+      <div class="head">${rich(ev.text)}</div></div>`;
+  // sit above the face: the card's bottom ends just above the top of the head when there's room
+  const card = el.firstElementChild;
+  let top = 150;
+  if (TL.safe && TL.safe.face_top) top = clamp(TL.safe.face_top - 24 - card.offsetHeight, 60, 150);
+  card.style.top = top + 'px';
+  return 'h:' + Math.round(p * 20);
+}
+
+function renderStatement(t) {
+  const el = document.getElementById('L-statement');
+  const ev = TL.events.find(e => e.type === 'statement' && active(e, t));
+  if (!ev) { el.innerHTML = ''; return ['s:-', false]; }
+  const pin = ease((t - ev.start) / 0.18), pout = ease((ev.end - t) / 0.15);
+  const p = Math.min(pin, pout);
+  const scale = 1.25 - 0.25 * back((t - ev.start) / 0.3);   // type slams in
+  el.innerHTML = `<div class="statement" style="opacity:${p}"><div class="txt" style="transform: scale(${scale})">${rich(ev.text)}</div></div>`;
+  return ['s:' + Math.round(p * 20) + ':' + Math.round(scale * 100), p > 0.5];
+}
+
+function renderLabel(t) {
+  const el = document.getElementById('L-label');
+  const ev = TL.events.find(e => e.type === 'label' && active(e, t));
+  if (!ev) { el.innerHTML = ''; return 'l:-'; }
+  const pin = ease((t - ev.start) / 0.3), pout = ease((ev.end - t) / 0.25);
+  const p = Math.min(pin, pout);
+  const L = TL.kit.label;
+  const pill = TL.S.label === 'pill';
+  el.innerHTML = `<div class="label${pill ? ' pill' : ''}" style="transform: translateX(${-50 + (1 - p) * -12}%) rotate(${pill ? 0 : -1}deg); opacity:${p}">
+      <span>${esc(ev.left || L.left)}</span><span class="star">${esc(TL.S.label_mark)}</span><span>${esc(ev.right || L.right)}</span></div>`;
+  return 'l:' + Math.round(p * 20);
+}
+
+function renderCover(t) {
+  const el = document.getElementById('L-cover');
+  const ev = TL.events.find(e => e.type === 'cover' && active(e, t));
+  if (!ev) { el.innerHTML = ''; return 'v:-'; }
+  // Title sits below the chin and inside the 3:4 area Instagram shows on the profile grid (y 240–1680)
+  let top = 1080;
+  if (TL.safe && TL.safe.face_bottom) top = clamp(TL.safe.face_bottom + 60, 900, 1200);
+  el.innerHTML = `<div class="cover" style="top:${top}px">
+      ${ev.eyebrow ? `<div class="eyebrow">${esc(ev.eyebrow)}</div>` : ''}
+      <div class="head">${rich(ev.text)}</div></div>`;
+  return 'v:1';
+}
+
+function renderBehind(t) {
+  const el = document.getElementById('L-behind');
+  const ev = TL.events.find(e => e.type === 'behind' && active(e, t));
+  if (!ev) { el.innerHTML = ''; return 'b:-'; }
+  const pin = ease((t - ev.start) / 0.25), pout = ease((ev.end - t) / 0.2);
+  const p = Math.min(pin, pout);
+  let html = '';
+  if (ev.image_url) {
+    html += `<div class="behind-img" style="background-image:url('${ev.image_url}'); opacity:${p}"></div>`;
+  } else if (ev.tint !== false) {
+    html += `<div class="behind-tint" style="opacity:${0.85 * p}"></div>`;
+  }
+  el.innerHTML = html;
+  if (ev.text) {
+    // One line of giant letters filling the width, sitting on top of the head: most of each letter
+    // shows above the hair, the bottom third tucks behind it. That overlap sells "behind me".
+    const ft = (TL.safe && TL.safe.face_top) || 400;
+    const headTop = ft - 90;                          // hair sits above the face box
+    const t1 = document.createElement('div');
+    t1.className = 'behind-txt';
+    if (ev.image_url) { t1.style.color = 'var(--ink)'; t1.style.textShadow = '0 6px 24px rgba(255,255,255,0.35)'; }   // dark ink reads on a picture
+    t1.style.whiteSpace = 'nowrap';
+    t1.innerHTML = rich(ev.text);
+    t1.style.fontSize = '200px';
+    el.appendChild(t1);
+    const size = Math.min(ev.size || 600, 200 * 1010 / Math.max(t1.scrollWidth, 1));
+    t1.style.fontSize = size + 'px';
+    const rise = (1 - p) * 50;
+    t1.style.top = (headTop - size * 0.62 + rise) + 'px';
+    t1.style.opacity = p;
+  }
+  return 'b:' + Math.round(p * 20);
+}
+
+// Draws the frame for time t. Returns a key: identical keys = identical frames (the renderer reuses them).
+window.renderAt = function (t, layer) {
+  if (layer === 'behind') {
+    ['L-statement', 'L-visuals', 'L-captions', 'L-hook', 'L-label', 'L-cover'].forEach(id => document.getElementById(id).innerHTML = '');
+    return renderBehind(t);
+  }
+  document.getElementById('L-behind').innerHTML = '';
+  const [sk, covering] = renderStatement(t);
+  const hide = covering && TL.kit.rules.captions_hidden_during_statement;
+  const vk = covering ? (document.getElementById('L-visuals').innerHTML = '', 'v:-') : window.renderVisuals(t);
+  return [sk, vk, renderCaptions(t, hide), renderHook(t), renderLabel(t), renderCover(t)].join('|');
+};
+</script>
+</body>
+</html>

@@ -1,0 +1,123 @@
+{
+  "_about": "Sound sets. A kit picks one with \"sfx\": {\"palette\": \"soft\"}. Every moment has 3+ sounds so reels never repeat one sound over and over. Ask for one by name: 'use the clicky sounds'.",
+  "soft": {
+    "feel": "gentle and calm: soft pops, paper, light swooshes",
+    "hook": [
+      "page_flip",
+      "soft_pop",
+      "soft_swoosh"
+    ],
+    "label": [
+      "tick",
+      "mouse_click",
+      "soft_pop"
+    ],
+    "statement": [
+      "soft_swoosh",
+      "ding",
+      "woosh"
+    ],
+    "highlight": [
+      "soft_pop",
+      "tick",
+      "bubble",
+      "blip"
+    ],
+    "visual": [
+      "soft_pop",
+      "tick",
+      "page_flip",
+      "bubble"
+    ]
+  },
+  "clicky": {
+    "feel": "techy and crisp: mouse clicks, typing, notifications",
+    "hook": [
+      "mouse_click",
+      "keyboard",
+      "blip"
+    ],
+    "label": [
+      "tick",
+      "mouse_click",
+      "blip"
+    ],
+    "statement": [
+      "swipe",
+      "woosh",
+      "shutter"
+    ],
+    "highlight": [
+      "mouse_click",
+      "tick",
+      "blip",
+      "soft_pop"
+    ],
+    "visual": [
+      "mouse_click",
+      "tick",
+      "blip",
+      "swipe"
+    ]
+  },
+  "playful": {
+    "feel": "light and fun: bubbles, pops, sparkles",
+    "hook": [
+      "bubble",
+      "pop",
+      "sparkle"
+    ],
+    "label": [
+      "blip",
+      "tick",
+      "bubble"
+    ],
+    "statement": [
+      "woosh",
+      "sparkle",
+      "ding"
+    ],
+    "highlight": [
+      "bubble",
+      "pop",
+      "blip",
+      "soft_pop"
+    ],
+    "visual": [
+      "bubble",
+      "pop",
+      "blip",
+      "sparkle"
+    ]
+  },
+  "punchy": {
+    "feel": "bold and high-energy: thuds, big whooshes, hard pops",
+    "hook": [
+      "thud",
+      "pop",
+      "woosh"
+    ],
+    "label": [
+      "mouse_click",
+      "tick",
+      "pop"
+    ],
+    "statement": [
+      "thud",
+      "woosh",
+      "swipe"
+    ],
+    "highlight": [
+      "pop",
+      "blip",
+      "mouse_click",
+      "soft_pop"
+    ],
+    "visual": [
+      "pop",
+      "swipe",
+      "mouse_click",
+      "thud"
+    ]
+  }
+}

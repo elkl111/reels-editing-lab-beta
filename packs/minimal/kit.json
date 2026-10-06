@@ -1,0 +1,110 @@
+{
+  "name": "Minimal",
+  "preset": true,
+  "description": "Clean and quiet: a refined sans with a serif-italic accent, soft white cards, mushroom and sage. Calm, polished, lets you be the focus.",
+  "fonts": {
+    "display": {
+      "family": "Inter",
+      "google": true,
+      "weight": 700
+    },
+    "italic": {
+      "family": "Instrument Serif",
+      "google": true,
+      "weight": 400,
+      "italic": true
+    },
+    "display_bold": {
+      "family": "Inter",
+      "google": true,
+      "weight": 800
+    },
+    "poster": {
+      "family": "Inter",
+      "google": true,
+      "weight": 800
+    },
+    "label": {
+      "family": "Inter",
+      "google": true,
+      "weight": 600
+    }
+  },
+  "colors": {
+    "white": "#F4F2EE",
+    "charcoal": "#1E1D1C",
+    "mushroom": "#CBBFB0",
+    "sage": "#B7C4AE"
+  },
+  "roles": {
+    "ink": "charcoal",
+    "caption_text": "white",
+    "caption_outline": "charcoal",
+    "caption_active": "white",
+    "highlight_blocks": [
+      "mushroom",
+      "sage"
+    ],
+    "hook_card": "white",
+    "hook_text": "charcoal",
+    "statement_bg": "charcoal",
+    "statement_text": "white",
+    "label_bg": "charcoal",
+    "label_text": "white"
+  },
+  "style": {
+    "caption_outline": 0,
+    "hook": "card",
+    "hook_size": 80,
+    "label": "pill",
+    "label_mark": "·",
+    "radius": 36,
+    "shadow": "rgba(0, 0, 0, 0.75)",
+    "shadow_soft": "rgba(0, 0, 0, 0.18)",
+    "statement_case": "none"
+  },
+  "moves": {
+    "mix_italic": true,
+    "highlighter_blocks": true,
+    "tilt_degrees": [
+      0,
+      0
+    ]
+  },
+  "captions": {
+    "mode": "phrase",
+    "font": "display_bold",
+    "size": 64,
+    "case": "sentence",
+    "max_words": 5,
+    "position_y": 0.7,
+    "position": "auto"
+  },
+  "label": {
+    "left": "YOUR NAME",
+    "right": "WHAT YOU TEACH"
+  },
+  "rules": {
+    "intensity": "clean",
+    "hook": "first line, top, one serif-italic emphasis word",
+    "statement": "only on the core idea, a 1.6s slam, at most 1 per reel",
+    "highlight": "rarely, 1 word every 4–5 chunks",
+    "label": "not by default: only when the speaker introduces themselves or tells their own story",
+    "captions_hidden_during_statement": true
+  },
+  "zoom": {
+    "jump": 1.05,
+    "punch": 1.1,
+    "face_y": 0.36
+  },
+  "sfx": {
+    "palette": "clicky",
+    "volume_db": -16
+  },
+  "visuals": {
+    "card": "glass",
+    "motion": "gentle",
+    "icon_stroke": 1.5,
+    "density": "calm"
+  }
+}

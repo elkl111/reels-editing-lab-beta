@@ -1,0 +1,115 @@
+{
+  "name": "Editorial",
+  "preset": true,
+  "description": "Magazine-cover elegance: a sharp, high-contrast serif with italic accents, burgundy and soft putty on warm white. Quiet, confident, expensive-looking.",
+  "fonts": {
+    "display": {
+      "family": "Bodoni Moda",
+      "google": true,
+      "weight": 500
+    },
+    "italic": {
+      "family": "Bodoni Moda",
+      "google": true,
+      "weight": 500,
+      "italic": true
+    },
+    "display_bold": {
+      "family": "Manrope",
+      "google": true,
+      "weight": 700
+    },
+    "poster": {
+      "family": "Bodoni Moda",
+      "google": true,
+      "weight": 700
+    },
+    "label": {
+      "family": "Manrope",
+      "google": true,
+      "weight": 600
+    }
+  },
+  "colors": {
+    "cloud": "#F2EFE9",
+    "ink": "#2A2321",
+    "burgundy": "#6E1F2C",
+    "putty": "#D9CCBC",
+    "blush": "#E8C8C0"
+  },
+  "roles": {
+    "ink": "ink",
+    "caption_text": "cloud",
+    "caption_outline": "ink",
+    "caption_active": "putty",
+    "highlight_blocks": [
+      "putty",
+      "blush"
+    ],
+    "hook_card": "cloud",
+    "hook_text": "ink",
+    "statement_bg": "burgundy",
+    "statement_text": "cloud",
+    "label_bg": "cloud",
+    "label_text": "ink",
+    "accent_pill": "burgundy"
+  },
+  "style": {
+    "caption_outline": 0,
+    "caption_case": "none",
+    "hook": "card",
+    "hook_size": 96,
+    "label": "ticket",
+    "label_mark": "—",
+    "radius": 4,
+    "shadow": "rgba(20, 12, 10, 0.7)",
+    "shadow_soft": "rgba(20, 12, 10, 0.2)",
+    "statement_case": "none"
+  },
+  "moves": {
+    "mix_italic": true,
+    "highlighter_blocks": false,
+    "tilt_degrees": [
+      0,
+      0
+    ]
+  },
+  "captions": {
+    "mode": "word",
+    "font": "display_bold",
+    "size": 58,
+    "case": "sentence",
+    "max_words": 4,
+    "position_y": 0.68,
+    "position": "auto"
+  },
+  "visuals": {
+    "card": "solid",
+    "motion": "gentle",
+    "icon_stroke": 1.5,
+    "density": "steady",
+    "radius": 6,
+    "alert": "burgundy"
+  },
+  "zoom": {
+    "jump": 1.05,
+    "punch": 1.1,
+    "face_y": 0.36
+  },
+  "sfx": {
+    "palette": "soft",
+    "volume_db": -15
+  },
+  "label": {
+    "left": "YOUR NAME",
+    "right": "WHAT YOU TEACH"
+  },
+  "rules": {
+    "intensity": "signature",
+    "hook": "first line, top, one emphasis word",
+    "statement": "only on the core idea, a 1.6s slam, at most 1 per reel",
+    "highlight": "1 key word every 3-4 chunks",
+    "label": "not by default: only when the speaker introduces themselves or tells their own story",
+    "captions_hidden_during_statement": true
+  }
+}

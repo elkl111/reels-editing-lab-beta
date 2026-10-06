@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv run tools/:*)",
+      "Bash(uv sync:*)",
+      "Bash(uv run playwright install:*)",
+      "Bash(python3 tools/doctor.py:*)",
+      "Bash(brew install ffmpeg:*)",
+      "Bash(/opt/homebrew/bin/brew install ffmpeg:*)",
+      "Bash(~/.local/bin/uv:*)",
+      "Bash(open:*)",
+      "Bash(qlmanage:*)",
+      "Bash(ffprobe:*)",
+      "Bash(ls:*)",
+      "Bash(cp:*)",
+      "Write(projects/**)",
+      "Edit(projects/**)",
+      "Write(packs/**)",
+      "Edit(packs/**)",
+      "Write(brand/**)",
+      "Edit(brand/**)",
+      "Read(**)"
+    ]
+  }
+}

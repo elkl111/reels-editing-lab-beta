@@ -1,0 +1,15 @@
+models/
+inbox/
+projects/
+inspiration/
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+fonts/private/
+assets/
+music/
+tools/bin/
+*.bak
+*.part
+Finished reels/

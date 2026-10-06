@@ -1,0 +1,126 @@
+{
+  "name": "Bold",
+  "preset": true,
+  "description": "Big and confident: heavy modern type mixed with a serif italic, bursts of tangerine, aqua and aubergine. For punchy, high-energy reels.",
+  "fonts": {
+    "display": {
+      "family": "Bricolage Grotesque",
+      "google": true,
+      "weight": 800
+    },
+    "italic": {
+      "family": "Fraunces",
+      "google": true,
+      "weight": 600,
+      "italic": true
+    },
+    "display_bold": {
+      "family": "Bricolage Grotesque",
+      "google": true,
+      "weight": 700
+    },
+    "poster": {
+      "family": "Bricolage Grotesque",
+      "google": true,
+      "weight": 800
+    },
+    "label": {
+      "family": "Bricolage Grotesque",
+      "google": true,
+      "weight": 600
+    }
+  },
+  "colors": {
+    "white": "#F7F4EE",
+    "ink": "#171515",
+    "tangerine": "#FF7A3D",
+    "aqua": "#5CC8C2",
+    "aubergine": "#4A1F45",
+    "lilac": "#C9B6F2"
+  },
+  "roles": {
+    "ink": "ink",
+    "caption_text": "white",
+    "caption_outline": "ink",
+    "caption_active": "tangerine",
+    "highlight_blocks": [
+      "aqua",
+      "lilac"
+    ],
+    "hook_card": "tangerine",
+    "hook_text": "ink",
+    "statement_bg": "aubergine",
+    "statement_text": "white",
+    "label_bg": "ink",
+    "label_text": "white",
+    "accent_pill": "tangerine"
+  },
+  "style": {
+    "caption_outline": 14,
+    "caption_case": "none",
+    "hook": "bare",
+    "hook_size": 112,
+    "hook_case": "uppercase",
+    "label": "pill",
+    "label_mark": "●",
+    "radius": 18,
+    "shadow": "rgba(0, 0, 0, 0.6)",
+    "shadow_soft": "rgba(0, 0, 0, 0.25)",
+    "statement_case": "uppercase"
+  },
+  "moves": {
+    "mix_italic": true,
+    "highlighter_blocks": true,
+    "tilt_degrees": [
+      1.5,
+      2.5
+    ]
+  },
+  "captions": {
+    "mode": "word",
+    "font": "display_bold",
+    "size": 96,
+    "case": "sentence",
+    "max_words": 3,
+    "position_y": 0.66,
+    "position": "auto"
+  },
+  "visuals": {
+    "card": "solid",
+    "motion": "snappy",
+    "icon_stroke": 2.25,
+    "density": "busy",
+    "card_color": "white",
+    "accent": "aqua",
+    "strong": "aubergine",
+    "alert": "tangerine",
+    "word": "ink",
+    "glow": "white",
+    "rotate": [
+      "tangerine",
+      "aqua",
+      "lilac"
+    ]
+  },
+  "zoom": {
+    "jump": 1.1,
+    "punch": 1.2,
+    "face_y": 0.36
+  },
+  "sfx": {
+    "palette": "punchy",
+    "volume_db": -11
+  },
+  "label": {
+    "left": "YOUR NAME",
+    "right": "WHAT YOU TEACH"
+  },
+  "rules": {
+    "intensity": "signature",
+    "hook": "first line, top, one emphasis word",
+    "statement": "only on the core idea, a 1.6s slam, at most 1 per reel",
+    "highlight": "1 key word every 3-4 chunks",
+    "label": "not by default: only when the speaker introduces themselves or tells their own story",
+    "captions_hidden_during_statement": true
+  }
+}

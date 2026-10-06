@@ -1,0 +1,120 @@
+{
+  "name": "Playful",
+  "preset": true,
+  "description": "Warm and joyful: a soft, curvy serif with bouncy pop-ups, teal and rose pink with a touch of butter. Friendly, never childish.",
+  "fonts": {
+    "display": {
+      "family": "Fraunces",
+      "google": true,
+      "weight": 700
+    },
+    "italic": {
+      "family": "Fraunces",
+      "google": true,
+      "weight": 600,
+      "italic": true
+    },
+    "display_bold": {
+      "family": "DM Sans",
+      "google": true,
+      "weight": 700
+    },
+    "poster": {
+      "family": "Fraunces",
+      "google": true,
+      "weight": 800
+    },
+    "label": {
+      "family": "DM Sans",
+      "google": true,
+      "weight": 600
+    }
+  },
+  "colors": {
+    "cream": "#FBF6EF",
+    "teal": "#1F6B66",
+    "rose": "#F2A9BC",
+    "butter": "#F6DF94",
+    "plum": "#3A2238"
+  },
+  "roles": {
+    "ink": "plum",
+    "caption_text": "cream",
+    "caption_outline": "plum",
+    "caption_active": "butter",
+    "highlight_blocks": [
+      "rose",
+      "butter"
+    ],
+    "hook_card": "cream",
+    "hook_text": "plum",
+    "statement_bg": "teal",
+    "statement_text": "cream",
+    "label_bg": "rose",
+    "label_text": "plum",
+    "accent_pill": "rose"
+  },
+  "style": {
+    "caption_outline": 10,
+    "hook": "card",
+    "hook_size": 100,
+    "label": "pill",
+    "label_mark": "✿",
+    "radius": 30,
+    "shadow": "rgba(40, 20, 40, 0.55)",
+    "shadow_soft": "rgba(40, 20, 40, 0.2)",
+    "statement_case": "none"
+  },
+  "moves": {
+    "mix_italic": true,
+    "highlighter_blocks": true,
+    "tilt_degrees": [
+      2,
+      3
+    ]
+  },
+  "captions": {
+    "mode": "karaoke",
+    "font": "display_bold",
+    "size": 70,
+    "case": "sentence",
+    "max_words": 3,
+    "position_y": 0.68,
+    "position": "auto"
+  },
+  "visuals": {
+    "card": "solid",
+    "motion": "bouncy",
+    "icon_stroke": 2,
+    "density": "busy",
+    "accent": "rose",
+    "strong": "teal",
+    "alert": "teal",
+    "rotate": [
+      "rose",
+      "butter",
+      "teal"
+    ]
+  },
+  "zoom": {
+    "jump": 1.07,
+    "punch": 1.14,
+    "face_y": 0.36
+  },
+  "sfx": {
+    "palette": "playful",
+    "volume_db": -13
+  },
+  "label": {
+    "left": "YOUR NAME",
+    "right": "WHAT YOU TEACH"
+  },
+  "rules": {
+    "intensity": "signature",
+    "hook": "first line, top, one emphasis word",
+    "statement": "only on the core idea, a 1.6s slam, at most 1 per reel",
+    "highlight": "1 key word every 3-4 chunks",
+    "label": "not by default: only when the speaker introduces themselves or tells their own story",
+    "captions_hidden_during_statement": true
+  }
+}
