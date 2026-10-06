@@ -165,6 +165,7 @@ function renderCaptions(t, hidden) {
   const dup = (TL.visuals || []).some(v => ['word', 'number', 'strike', 'step'].includes(v.kind) && t >= v.start && t < v.end
     && norm([v.text, v.value, v.label, v.pre].filter(Boolean).join(' ')).some(w => capWords.has(w)));
   if (dup) { el.innerHTML = ''; return 'c:dup'; }
+  if ((TL.visuals || []).some(v => v.kind === 'gif' && v.at === 'full' && t >= v.start && t < v.end)) { el.innerHTML = ''; return 'c:gif'; }
   const mode = TL.kit.captions.mode;
   let key = 'c:' + chunk.start;
   const words = chunk.words.map((w, i) => {
@@ -194,7 +195,11 @@ function renderCaptions(t, hidden) {
       || (TL.visuals || []).some(v => window.visualUsesTop(v) && overlaps(v, v.end));
     y = topTaken ? below : Math.max(TL.safe.face_top - 150, 120);
   }
-  if (busy.has('chest') && Math.abs(y - below) < 5) y = Math.max(TL.safe ? TL.safe.face_top - 150 : 300, 120);
+  if (busy.has('chest') && Math.abs(y - below) < 5) {
+    // the chin area is taken: go above the head, or to the very bottom if the top is taken too
+    y = (busy.has('top') || (TL.visuals || []).some(v => window.visualUsesTop(v) && t >= v.start - 0.3 && t < v.end + 0.3))
+      ? 1920 * 0.86 : Math.max(TL.safe ? TL.safe.face_top - 150 : 300, 120);
+  }
   el.innerHTML = `<div class="cap" style="top:${y}px; transform: translateY(-50%) scale(${0.92 + 0.08 * p}); opacity:${p}">${words}</div>`;
   return key;
 }

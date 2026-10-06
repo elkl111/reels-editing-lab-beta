@@ -30,6 +30,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from lab import FPS, H, LAB, W, fmt_t, load_json, open_video, replace_into, run, save_json
 import faces as facefinder
+import memes as mem
 import fonts
 
 STAGE = LAB / "effects" / "stage.html"
@@ -146,7 +147,7 @@ def resolve_events(plan, edl, total, words=()):
 
 
 ICONS = LAB / "effects" / "icons.json"
-VISUAL_DUR = {"word": 1.8, "number": 2.2, "strike": 2.4, "chat": 3.5, "notify": 2.4, "step": 2.6, "phone": 3.0,
+VISUAL_DUR = {"gif": 2.6, "word": 1.8, "number": 2.2, "strike": 2.4, "chat": 3.5, "notify": 2.4, "step": 2.6, "phone": 3.0,
               "person": 2.6, "versus": 3.2, "scale": 3.0, "checklist": 3.0, "hub": 3.5, "flow": 3.0, "chips": 2.8}
 
 
@@ -203,6 +204,19 @@ def resolve_visuals(plan, edl, words, total, events=()):
         if v["end"] - v["start"] < 0.6:
             print(f"Skipped a {v['kind']} pop-up at {fmt_t(v['start'])}: it falls inside a statement or behind moment")
             continue
+        if v["kind"] == "gif":
+            f = Path(v.get("file", "")).expanduser()
+            f = f if f.is_absolute() else LAB / f
+            if not f.exists():
+                raise SystemExit(f"Meme file not found: {v.get('file')}")
+            v["file"] = str(f.resolve())
+            gw, gh, gd = mem.probe(f)
+            v["w"], v["h"] = gw, gh
+            if v.get("at") == "full":
+                v["end"] = min(v["end"], v["start"] + v.get("dur", 1.6))
+            elif not v.get("at"):
+                v["at"] = "chest" if gh > gw * 1.1 else "top"     # tall clips below the chin, wide ones above the head
+            v["_i"] = len(out)
         if v.get("image"):
             img = Path(v["image"]).expanduser()
             img = img if img.is_absolute() else LAB / img
@@ -210,6 +224,26 @@ def resolve_visuals(plan, edl, words, total, events=()):
                 raise SystemExit(f"Image not found: {v['image']}")
             v["image_url"] = img.resolve().as_uri()
         out.append(v)
+    # two pieces never share the band above the head: the earlier one makes way
+    def top_band(v):
+        if v.get("at"):
+            return v["at"] in ("top", "full")
+        return v["kind"] not in ("person", "phone", "chips")
+    out.sort(key=lambda v: v["start"])
+    prev = None
+    for v in out:
+        if not top_band(v):
+            continue
+        if prev and v["start"] < prev["end"]:
+            if v["start"] - 0.05 - prev["start"] >= 0.8:
+                prev["end"] = v["start"] - 0.05
+            else:
+                v["start"] = prev["end"] + 0.05
+        prev = v
+    out = [v for v in out if v["end"] - v["start"] >= 0.6]
+    for k, v in enumerate(out):
+        if v["kind"] == "gif":
+            v["_i"] = k
     used |= {"check", "x", "arrow-up", "bell", "user", "sparkles", "circle"}
     missing = sorted(n for n in used if n not in icons)
     if missing:
@@ -257,6 +291,29 @@ def typing_cues(proj, visuals):
                 out.append({"at": round(send, 3), "sfx": "swipe"})
         v["sfx"] = False                                       # the typing replaces the pop-up's own sound
     return out
+
+
+def gif_rects(timeline):
+    """Ask the stage where each meme card's window sits once it has popped in: [x, y, w, h] in pixels."""
+    gifs = [v for v in timeline.get("visuals", []) if v["kind"] == "gif" and v.get("at") != "full"]
+    if not gifs:
+        return
+    from playwright.sync_api import sync_playwright
+    with sync_playwright() as pw:
+        b = pw.chromium.launch()
+        pg = b.new_page(viewport={"width": W, "height": H})
+        pg.goto(STAGE.as_uri())
+        pg.evaluate("tl => window.setup(tl)", timeline)
+        pg.wait_for_timeout(300)
+        for v in gifs:
+            t = min(v["start"] + 0.8, (v["start"] + v["end"]) / 2)
+            pg.evaluate(f"window.renderAt({t:.3f}, 'front')")
+            r = pg.evaluate(f"(() => {{ const e = document.querySelector('[data-gif=\"{v['_i']}\"]'); if (!e) return null;"
+                            f" const r = e.getBoundingClientRect(); return [r.x, r.y, r.width, r.height]; }})()")
+            if r:
+                x, y, w, h = [int(round(z)) for z in r]
+                v["rect"] = [x, y, w - w % 2, h - h % 2]
+        b.close()
 
 
 def face_sides(fdata):
@@ -468,7 +525,7 @@ def person_masks(proj, base, windows):
     return dirs
 
 
-def composite(proj, entries, out_name, zoom=None, cues=(), sfx_db=-14, behind=None):
+def composite(proj, entries, out_name, zoom=None, cues=(), sfx_db=-14, behind=None, gifs=()):
     """Layers, bottom to top: the video → anything 'behind' the speaker → the speaker cut out
     again (only during those moments) → captions and graphics. Plus sound effects."""
     front = write_concat(entries, proj / "overlay.ffconcat")
@@ -480,7 +537,10 @@ def composite(proj, entries, out_name, zoom=None, cues=(), sfx_db=-14, behind=No
         for d in behind["masks"]:
             inputs += ["-framerate", str(FPS), "-i", str(d / "f%05d.png")]
         n_win = len(behind["masks"])
-    first_sfx = 2 + (1 + n_win if behind else 0)
+    first_gif = 2 + (1 + n_win if behind else 0)
+    for g in gifs:
+        inputs += ["-stream_loop", "-1", "-i", str(g["file"])]
+    first_sfx = first_gif + len(gifs)
     for t, name in cues:
         inputs += ["-i", str(sfx_file(name))]
 
@@ -495,7 +555,23 @@ def composite(proj, entries, out_name, zoom=None, cues=(), sfx_db=-14, behind=No
         fc += f"[bg{n_win}]null[base];"
     else:
         fc = f"[0:v]{zoom},setsar=1[base];" if zoom else "[0:v]null[base];"
-    fc += f"[1:v]fps={FPS},format=rgba[ov];[base][ov]overlay=0:0:eof_action=pass:format=auto,format=yuv420p[v]"
+    # memes / GIFs: laid in under the graphics, so their card frame and caption sit on top
+    for k, g in enumerate(gifs):
+        a, b = g["start"], g["end"]
+        d = b - a
+        fin, fout = (a + 0.05, max(b - 0.2, a + 0.1)) if g["full"] else (a + 0.28, max(b - 0.3, a + 0.4))
+        fc += f"[{first_gif + k}:v]trim=duration={d:.3f},setpts=PTS-STARTPTS+{a:.3f}/TB,fps={FPS},"
+        if g["full"]:
+            fc += (f"split[ga{k}][gb{k}];[ga{k}]scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},boxblur=24:2[gbg{k}];"
+                   f"[gb{k}]scale={W}:{H}:force_original_aspect_ratio=decrease[gfg{k}];[gbg{k}][gfg{k}]overlay=(W-w)/2:(H-h)/2,")
+            x, y = 0, 0
+        else:
+            x, y, w, h = g["rect"]
+            fc += f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},"
+        fc += (f"format=rgba,fade=in:st={fin:.3f}:d=0.15:alpha=1,fade=out:st={fout:.3f}:d=0.15:alpha=1[g{k}];"
+               f"[{'base' if k == 0 else f'gb_{k}'}][g{k}]overlay={x}:{y}:eof_action=pass[gb_{k + 1}];")
+    top = f"gb_{len(gifs)}" if gifs else "base"
+    fc += f"[1:v]fps={FPS},format=rgba[ov];[{top}][ov]overlay=0:0:eof_action=pass:format=auto,format=yuv420p[v]"
     amap = "0:a"
     if cues:
         parts = []
@@ -558,6 +634,7 @@ def build(proj, kit_name, no_open, out="final"):
     if timeline["safe"]:
         timeline["safe"]["face_left"], timeline["safe"]["face_right"] = face_sides(fdata)
     save_json(proj / "timeline.json", timeline)
+    gif_rects(timeline)
     entries, rendered = render_overlay(timeline, total, proj / "overlay")
     steps, punches, face_y = zoom_plan(edl, plan, kit, total)
     typed = typing_cues(proj, timeline["visuals"]) if plan.get("sfx", True) else []
@@ -573,7 +650,9 @@ def build(proj, kit_name, no_open, out="final"):
         b_entries, _ = render_overlay(timeline, total, proj / "overlay-behind", layer="behind")
         behind = {"base": base, "entries": b_entries, "windows": windows,
                   "masks": person_masks(proj, base, windows)}
-    composite(proj, entries, f"{out}.mp4", zf, cues, kit.get("sfx", {}).get("volume_db", -14), behind)
+    gifs = [{"file": v["file"], "start": v["start"], "end": v["end"], "full": v.get("at") == "full", "rect": v.get("rect")}
+            for v in timeline["visuals"] if v["kind"] == "gif" and (v.get("at") == "full" or v.get("rect"))]
+    composite(proj, entries, f"{out}.mp4", zf, cues, kit.get("sfx", {}).get("volume_db", -14), behind, gifs)
     print(f"Built {fmt_t(total)} reel in {time.time() - t0:.0f}s with the '{kit['name']}' kit "
           f"({len(timeline['captions'])} captions, {len(timeline['events'])} moments, {len(punches)} punch-ins, "
           f"{len(cues)} sound effects, {rendered} unique frames).")
@@ -677,6 +756,7 @@ CATALOG = [
     {"kind": "hub", "cat": "hub: a system", "title": "my AI system", "center": {"icon": "sparkles", "text": "AI"}, "nodes": [{"icon": "calendar", "text": "Calendar"}, {"icon": "inbox", "text": "Inbox"}, {"icon": "folder-kanban", "text": "Projects"}, {"icon": "users", "text": "CRM"}]},
     {"kind": "scale", "cat": "scale: a time span or range", "marks": ["1 month", "1 year", "2 years", "3 years"], "from": 0, "to": 3},
     {"kind": "person", "cat": "person: a client story", "name": "Abby", "note": "coach, 2 kids", "meter": 3},
+    {"kind": "gif", "cat": "gif: a meme, on request", "file": "effects/sample-meme.mp4", "caption": "when it *finally* works"},
     {"kind": "versus", "cat": "versus: this, not that", "left": {"icon": "shuffle", "text": "Switching tools"}, "right": {"icon": "folder", "text": "One business brain"}},
 ]
 
@@ -692,8 +772,14 @@ def catalog(proj, kit_name, no_open):
     icons = load_json(ICONS)
     vis, used, t = [], set(), 0.3
     for v in json.loads(json.dumps(CATALOG)):
-        v["start"], v["end"] = t, t + 3.0
-        t += 3.2
+        v["start"], v["end"] = t, t + 2.8
+        t += 3.0
+        if v["kind"] == "gif":
+            f = LAB / v["file"]
+            v["file"] = str(f)
+            v["w"], v["h"], _ = mem.probe(f)
+            v["at"] = "chest" if v["h"] > v["w"] * 1.1 else "top"
+            v["_i"] = len(vis)
         for it in v.get("items", []) + v.get("nodes", []):
             if isinstance(it, dict) and it.get("icon"):
                 used.add(it["icon"])
@@ -707,12 +793,12 @@ def catalog(proj, kit_name, no_open):
     total = t
     tl = {"kit": kit, "safe": safe, "captions": [], "events": [], "visuals": vis, "catalog": True,
           "icons": {n: icons[n] for n in used if n in icons}}
+    gif_rects(tl)
     entries, _ = render_overlay(tl, total, proj / "overlay-catalog")
-    ov = write_concat(entries, proj / "catalog.ffconcat")
     out = proj / f"catalog-{kit_name}.mp4"
-    run(["ffmpeg", "-v", "error", "-y", "-stream_loop", "-1", "-i", str(proj / "rough.mp4"), "-f", "concat", "-safe", "0",
-         "-i", str(ov), "-filter_complex", f"[1:v]fps={FPS},format=rgba[o];[0:v][o]overlay=0:0:eof_action=pass,format=yuv420p[v]",
-         "-map", "[v]", "-an", "-t", f"{total:.2f}", "-c:v", "libx264", "-crf", "20", str(out)])
+    gifs = [{"file": v["file"], "start": v["start"], "end": v["end"], "full": False, "rect": v["rect"]}
+            for v in vis if v["kind"] == "gif" and v.get("rect")]
+    composite(proj, entries, out.name, None, (), -14, None, gifs)
     print(f"CATALOG={out}")
     if not no_open:
         open_video(out)

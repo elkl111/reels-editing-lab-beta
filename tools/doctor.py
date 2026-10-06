@@ -46,6 +46,9 @@ def check():
     add("speech-model", PARAKEET.exists() and PARAKEET.stat().st_size > 2_000_000_000,
         "the speech model that writes down every word (2.3 GB, runs on this Mac)", "uv run tools/get_models.py")
     add("look", (LAB / "brand" / "kit.txt").exists(), "a chosen look (set during onboarding)", "the setup skill")
+    keys = LAB / "brand" / "keys.json"
+    has_key = keys.exists() and ('"giphy"' in keys.read_text() or '"klipy"' in keys.read_text())
+    add("memes (optional)", True, "meme search: " + ("ready" if has_key else "no GIF key yet (only needed to search for memes)"))
     return rows
 
 

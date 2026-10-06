@@ -103,3 +103,10 @@ Every failure the Lab has had, why it happened, and the defence now built in. Re
 5. **Pop-ups were dropped near statement or behind moments.**
    - Defence: they now wait until the moment ends, or end just before it, instead of being skipped. `check.png` shows every pop-up for the agent to review.
 
+
+## 19. Memes and GIFs: why the clip is laid in underneath
+- **Problem:** the stage renders frames as browser screenshots, and a browser can't hold an animated GIF at an exact moment. GIFs drawn on the stage would play at the wrong speed and stutter.
+- **Design:** the stage draws the card as a frame with a **see-through window**, and asks the browser where that window sits once the card has popped in (`gif_rects`). ffmpeg then lays the clip (converted to MP4 by `tools/memes.py`) *underneath* the graphics layer at exactly that rectangle and time.
+  - The window stays filled with the card colour for its first 0.3s, until the clip fades in, so it never shows as an empty frame.
+  - Tall clips go below the chin and wide ones above the head. The earlier of two pieces above the head makes way for the next.
+  - When both the top and the chin area are busy, captions drop to the bottom of the screen.

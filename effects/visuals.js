@@ -269,8 +269,23 @@
     return { parts: [{ zone: v.at || 'right', html }], key: 'ph' + Q(x) };
   };
 
+  K.gif = (v, t) => {
+    // A frame with a see-through window; the moving GIF is laid in underneath by the build (ffmpeg),
+    // at the window's settled position. Full-screen: only the caption is drawn here.
+    if (v.at === 'full') {
+      const e = enter(t, v.start);
+      return { parts: v.caption ? [{ zone: 'top', html: `<div class="v-disp v-word v-gif-full" style="${st(e)}">${rich(v.caption)}</div>` }] : [],
+               key: 'gf' + e.k };
+    }
+    const e = enter(t, v.start), w = v.win_w || 560, h = Math.round(w * (v.h || 1) / (v.w || 1));
+    const html = `<div class="v-gif" style="${st(e)}">
+      <div class="frame" style="width:${w}px;height:${Math.min(h, 640)}px"><div class="win" data-gif="${v._i}" style="${t - v.start < 0.3 ? 'background:var(--v-soft)' : ''}"></div></div>
+      ${v.caption ? `<div class="cap v-disp">${rich(v.caption)}</div>` : ''}</div>`;
+    return { parts: [{ zone: v.at || 'top', html }], key: 'g' + e.k + (t - v.start < 0.3 ? 'f' : '') };
+  };
+
   window.visualUsesTop = v => {
-    if (v.at) return v.at === 'top';
+    if (v.at) return v.at === 'top' || v.at === 'full';
     if (['person', 'phone'].includes(v.kind)) return false;
     if (v.kind === 'chips') { const Z = zones(); return !((v.items || []).length <= 6 && Math.min(Z.left.w, Z.right.w) >= 300); }
     return true;

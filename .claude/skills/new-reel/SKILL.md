@@ -130,6 +130,8 @@ When the rough cut is locked, build straight away. Don't ask for approval.
 
 Tweaks: edit `build.json` (or the kit, for changes that should stick) and re-run build. Save lasting preferences to `brand/preferences.md`.
 
+Memes ("put the Schitt's Creek David meme on line 5", "use this GIF", "meme 3", "make it full screen", "bigger", "no text"): follow the memes section of the `visuals` skill, then rebuild.
+
 "Use these colours instead" / "make it sage and cream" / "different font": change their kit (`colors` values, keeping the roles; `visuals.rotate` for the pop-up colours; any free Google Font), then rebuild. Ask "just this reel or always?" only if unclear. Never edit a preset.
 
 To preview a kit: `uv run tools/build.py projects/<name> --sheet` renders every piece over their footage as one image.

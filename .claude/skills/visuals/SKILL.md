@@ -47,6 +47,7 @@ Filler, transitions and feelings without an object get nothing.
 | a time span or range ("in a month… in 3 years") | `scale` | `marks`, `from`, `to`, `move_word` |
 | a client, a person, a story about someone | `person` | `"name": "Abby", "note": "coach", "meter": 3` |
 | this vs that, old way vs new way | `versus` | `left` (the ✗) / `right` (the ✓), `right_word` |
+| **a meme or GIF, only when the user asks for one** | `gif` | `"file": "projects/<name>/memes/3.mp4", "caption": "me reading my old *captions*"` |
 | their profile, a screenshot, an app | `phone` | `"image": "assets/profile.png"` (only images the user gave) |
 
 **Text on pieces:**
@@ -55,6 +56,25 @@ Filler, transitions and feelings without an object get nothing.
 - title case is fine, but no full sentences except in `chat` and `notify`
 
 **Icons:** find real names with `uv run tools/icons.py calendar money email` and never guess a name. The build stops on an unknown icon.
+
+### Memes and GIFs (only on request)
+- **Never add a meme unprompted.** Memes are a taste call. You may *suggest* one in your report ("a David Rose 'ew' would land on line 5"), and add it only if they say yes.
+- **Search:** `uv run tools/memes.py search "<show> <character> <emotion or words>" --project projects/<name>`. For example "schitts creek david ew" or "the office michael no god please no".
+  - It downloads up to 6 clips and prints `SHEET=…/memes/sheet.png`. **Read the sheet** and pick the tile that matches what they described (the right character, the right expression), not just the first.
+  - Tiles are numbered 1…6, left to right, top to bottom.
+- **Their own file** ("use this GIF"): `uv run tools/memes.py add "<file>" --project projects/<name>` gives `memes/own-1.mp4`. Images work too.
+- **Place it:**
+  - `{"kind": "gif", "file": "projects/<name>/memes/<n>.mp4", "word": i, "caption": "<their text>"}`
+  - The caption is optional, in their words, with one `*emphasis*`. Default length is about 2.6s, or set `"until_word"`.
+  - Wide clips sit above the head; tall ones sit below the chin. `"at": "full"` makes a 1.6s full-screen cutaway with the caption on top.
+- **In the report:** say which one you used, and open the sheet (`open …/sheet.png`) so they can say "meme 3". The other clips are already downloaded, so swapping means just changing `file` and rebuilding.
+- **No key** (`MEMES=no-key`): offer the 3-minute free setup:
+  1. They go to developers.giphy.com, sign up, create an **API** app (not SDK), and copy the key.
+  2. They paste the key in the chat.
+  3. You save it to `brand/keys.json` as `{"giphy": "<key>"}`.
+
+  Never ask them to edit files themselves. Until then, their own GIF files still work.
+- **Mention once,** the first time they use a TV or movie meme: those clips belong to the studios. Short silent reaction GIFs are used everywhere on Instagram, but there's a small risk. Their own clips carry none.
 
 ## 3. Timing (word indexes from the transcript)
 
