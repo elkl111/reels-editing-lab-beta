@@ -28,7 +28,8 @@ import time
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from lab import FPS, H, LAB, W, fmt_t, load_json, open_video, replace_into, run, save_json
+from lab import (FPS, H, LAB, MAX_PEAK, SAFE, TARGET_LUFS, W, fmt_t, load_json, loudness, open_video,
+                 replace_into, run, save_json)
 import faces as facefinder
 import memes as mem
 import fonts
@@ -85,6 +86,24 @@ def line_of_word(edl, i):
     return None
 
 
+def apply_spelling(words, plan):
+    """build.json "spell": {"<word index>": "Claude"} fixes a name the transcriber misheard ("cloud" → "Claude")
+    in the captions. "" folds a word into the one before it ("Chat" "GPT" → {"40": "ChatGPT", "41": ""}).
+    Only for mis-hearings: what they said stays verbatim."""
+    fix = {int(k): v for k, v in (plan.get("spell") or {}).items()}
+    if not fix:
+        return words
+    out = []
+    for w in words:
+        if w["i"] in fix:
+            w = {**w, "w": fix[w["i"]]}
+            if w["w"] == "" and out:
+                out[-1] = {**out[-1], "e": w["e"]}
+                continue
+        out.append(w)
+    return out
+
+
 def caption_chunks(words, edl, max_words, highlight):
     """Short caption groups: break at punctuation, at line ends, at pauses, or at max_words."""
     chunks, cur = [], []
@@ -120,6 +139,8 @@ def resolve_events(plan, edl, total, words=()):
         if "word" in ev and ev["word"] in by_i:            # start on a spoken word
             ev["start"] = max(by_i[ev.pop("word")]["s"] - 0.1, 0.0)
             ev.setdefault("end", ev["start"] + 2.0)
+        if "until_word" in ev and ev["until_word"] in by_i:
+            ev["end"] = by_i[ev.pop("until_word")]["e"] + 0.3
         if "line" in ev and "start" not in ev:
             ln = lines[ev["line"]]
             ev["start"], ev["end"] = ln["out_start"], ln["out_end"]
@@ -135,6 +156,9 @@ def resolve_events(plan, edl, total, words=()):
             ev["end"] = ev["start"] + ev.get("dur", STATEMENT_DUR)
         if ev["type"] == "behind":
             ev["end"] = max(ev["end"], ev["start"] + 1.5)
+        if ev["type"] == "orbit":                      # their own reels circling them (brand/reels/)
+            ev.setdefault("end", ev["start"] + 3.0)
+            ev["end"] = max(ev["end"], ev["start"] + 2.0)
             if ev.get("image"):
                 img = Path(ev["image"]).expanduser()
                 img = img if img.is_absolute() else LAB / img
@@ -147,7 +171,7 @@ def resolve_events(plan, edl, total, words=()):
 
 
 ICONS = LAB / "effects" / "icons.json"
-VISUAL_DUR = {"gif": 2.6, "word": 1.8, "number": 2.2, "strike": 2.4, "chat": 3.5, "notify": 2.4, "step": 2.6, "phone": 3.0,
+VISUAL_DUR = {"gif": 2.6, "insert": 3.0, "profile": 3.2, "word": 1.8, "number": 2.2, "strike": 2.4, "chat": 3.5, "notify": 2.4, "step": 2.6, "phone": 3.0,
               "person": 2.6, "versus": 3.2, "scale": 3.0, "checklist": 3.0, "hub": 3.5, "flow": 3.0, "chips": 2.8}
 
 
@@ -204,7 +228,7 @@ def resolve_visuals(plan, edl, words, total, events=()):
         if v["end"] - v["start"] < 0.6:
             print(f"Skipped a {v['kind']} pop-up at {fmt_t(v['start'])}: it falls inside a statement or behind moment")
             continue
-        if v["kind"] == "gif":
+        if v["kind"] in ("gif", "insert"):
             f = Path(v.get("file", "")).expanduser()
             f = f if f.is_absolute() else LAB / f
             if not f.exists():
@@ -242,7 +266,7 @@ def resolve_visuals(plan, edl, words, total, events=()):
         prev = v
     out = [v for v in out if v["end"] - v["start"] >= 0.6]
     for k, v in enumerate(out):
-        if v["kind"] == "gif":
+        if v["kind"] in ("gif", "insert"):
             v["_i"] = k
     used |= {"check", "x", "arrow-up", "bell", "user", "sparkles", "circle"}
     missing = sorted(n for n in used if n not in icons)
@@ -262,6 +286,13 @@ def typing_cues(proj, visuals):
     import make_sfx as mk
     out, d = [], proj / "sfx"
     d.mkdir(exist_ok=True)
+    for v in visuals:                                   # profile insert: a tap on Follow (and on Post)
+        if v["kind"] == "profile":
+            tap = v.get("tap_t", v["start"] + 0.8)
+            out.append({"at": round(tap, 3), "sfx": "mouse_click"})
+            if v.get("keyword"):
+                kt = v.get("keyword_t", tap + 0.7)
+                out.append({"at": round(kt + 0.3 + len(v["keyword"]) * 0.07 + 0.25, 3), "sfx": "mouse_click"})
     for k, v in enumerate(visuals):
         if v["kind"] == "chat":
             text = v.get("prompt", "")
@@ -295,7 +326,7 @@ def typing_cues(proj, visuals):
 
 def gif_rects(timeline):
     """Ask the stage where each meme card's window sits once it has popped in: [x, y, w, h] in pixels."""
-    gifs = [v for v in timeline.get("visuals", []) if v["kind"] == "gif" and v.get("at") != "full"]
+    gifs = [v for v in timeline.get("visuals", []) if v["kind"] in ("gif", "insert") and v.get("at") != "full"]
     if not gifs:
         return
     from playwright.sync_api import sync_playwright
@@ -314,6 +345,61 @@ def gif_rects(timeline):
                 x, y, w, h = [int(round(z)) for z in r]
                 v["rect"] = [x, y, w - w % 2, h - h % 2]
         b.close()
+
+
+def own_reels():
+    """The member's own reels (brand/reels/, filled by tools/reels.py): thumbnails for the orbit and the profile grid."""
+    d = LAB / "brand" / "reels"
+    return [{"thumb_url": f.resolve().as_uri(), "name": f.stem} for f in sorted(d.glob("*.jpg"))] if d.exists() else []
+
+
+def own_profile():
+    """brand/instagram.json: their real profile numbers ({name, handle, posts, followers, following, bio, avatar}).
+    Never invented: if it's missing, the profile insert shows blanks and Claude asks for the numbers."""
+    p = LAB / "brand" / "instagram.json"
+    if not p.exists():
+        return {}
+    d = load_json(p)
+    if d.get("avatar"):
+        a = Path(d["avatar"]).expanduser()
+        a = a if a.is_absolute() else LAB / a
+        if a.exists():
+            d["avatar_url"] = a.resolve().as_uri()
+    return d
+
+
+def cut_check(proj, edl, video):
+    """The last frame before and the first frame after every cut, from the finished video, side by side:
+    every 'after' frame must show the new shot cleanly (no leftover graphics or a frozen frame)."""
+    cuts = [sg["out_start"] for k, sg in enumerate(edl["segments"]) if k and
+            not (sg["words"][0] == edl["segments"][k - 1]["words"][1] + 1)]
+    if not cuts:
+        return None
+    d = proj / "cutcheck"
+    if d.exists():
+        shutil.rmtree(d)
+    d.mkdir()
+    k = 0
+    for c in cuts[:18]:
+        for tt in (max(c - 1.5 / FPS, 0), c + 1.5 / FPS):
+            run(["ffmpeg", "-v", "error", "-y", "-ss", f"{tt:.3f}", "-i", str(video), "-frames:v", "1", "-vf", "scale=180:320",
+                 str(d / f"c{k:03d}.png")])
+            k += 1
+    out = proj / "cuts.png"
+    cols = min(12, k)
+    run(["ffmpeg", "-v", "error", "-y", "-framerate", "1", "-i", str(d / "c%03d.png"), "-vf", f"tile={cols}x{-(-k // cols)}",
+         "-frames:v", "1", str(out)])
+    print(f"CUTS={out}  ({len(cuts)} cuts: pairs before|after, left to right)")
+    return out
+
+
+def phone_copy(proj, video):
+    """A small 720p copy for checking on the phone (AirDrop / messages); the full one stays for posting."""
+    out = proj / f"{video.stem}-phone.mp4"
+    run(["ffmpeg", "-v", "error", "-y", "-i", str(video), "-vf", "scale=720:-2", "-c:v", "libx264", "-preset", "veryfast",
+         "-crf", "27", "-c:a", "aac", "-b:a", "128k", "-movflags", "+faststart", str(out)])
+    print(f"PHONE={out}  ({out.stat().st_size / 1e6:.1f} MB)")
+    return out
 
 
 def face_sides(fdata):
@@ -344,6 +430,7 @@ def render_overlay(timeline, total, out_dir, times=None, layer="front"):
     out_dir.mkdir(parents=True)
     n = int(round(total * FPS))
     frames = times if times is not None else [k / FPS for k in range(n)]
+    audit = {"seen": set(), "issues": []} if times is None and layer == "front" else None
     entries, last_key, last_file, rendered = [], None, None, 0
     with sync_playwright() as pw:
         b = pw.chromium.launch()
@@ -353,6 +440,13 @@ def render_overlay(timeline, total, out_dir, times=None, layer="front"):
         pg.wait_for_timeout(300)
         for k, t in enumerate(frames):
             key = pg.evaluate(f"window.renderAt({t:.4f}, '{layer}')")
+            if key != last_key and audit is not None:          # Instagram safe zone, checked on every new frame
+                for x in pg.evaluate(f"window.safeAudit({t:.4f})"):
+                    what = x.split(": ")[0].split(" ", 1)[1]
+                    sec = int(float(x.split("s ")[0]))
+                    if (what, sec // 2) not in audit["seen"]:     # one report per piece per 2 seconds
+                        audit["seen"].add((what, sec // 2))
+                        audit["issues"].append(x)
             if key != last_key or times is not None:
                 f = out_dir / f"f{k:06d}.png"
                 pg.screenshot(path=str(f), omit_background=True, clip={"x": 0, "y": 0, "width": W, "height": H})
@@ -363,6 +457,8 @@ def render_overlay(timeline, total, out_dir, times=None, layer="front"):
             else:
                 entries[-1][1] += 1
         b.close()
+    if audit is not None:
+        timeline["safe_issues"] = audit["issues"]
     return entries, rendered
 
 
@@ -385,23 +481,53 @@ def zoom_plan(edl, plan, kit, total):
     lines = {ln["line"]: ln for ln in edl["lines"]}
     punches = []
     for zm in plan.get("zooms", []):
-        if "line" in zm:
-            ln = lines[zm["line"]]
-            punches.append((ln["out_start"], ln["out_end"], zm.get("scale", z.get("punch", 1.15))))
-        else:
-            punches.append((zm["start"], zm["end"], zm.get("scale", z.get("punch", 1.15))))
+        a, b = (lines[zm["line"]]["out_start"], lines[zm["line"]]["out_end"]) if "line" in zm else (zm["start"], zm["end"])
+        if zm.get("close"):          # studio close-up: cut straight in, hold for the line
+            punches.append((a, b, zm.get("scale", z.get("close", 1.5)), 0.0))
+        else:                        # punch-in: a quick push closer and back
+            punches.append((a, b, zm.get("scale", z.get("punch", 1.15)), 0.15))
+    if z.get("push"):                # slow push-in across every shot instead of jump zooms
+        steps = [(a, b, -sc) for a, b, sc in steps]          # negative = "push" marker for zoom_filter
     return steps, punches, z.get("face_y", 0.38)
 
 
-def zoom_filter(steps, punches, face_y):
+def zoom_filter(steps, punches, face_y, size=(W, H)):
     if all(s[2] == 1.0 for s in steps) and not punches:
-        return None
-    base = "+".join(f"between(it,{a:.3f},{b - 0.001:.3f})*{sc:.3f}" for a, b, sc in steps) or "1"
-    # a punch eases in over 0.15 s and back out over 0.15 s, multiplied on top of the base framing
-    ramp = "+".join(f"({sc - 1:.3f})*clip((it-{a:.3f})/0.15,0,1)*clip(({b:.3f}-it)/0.15,0,1)" for a, b, sc in punches) or "0"
+        return f"scale={W}:{H}" if size != (W, H) else None
+    def step(a, b, sc):
+        if sc < 0:                   # slow push-in: 1.0 → 1.05 across the shot
+            return f"between(it,{a:.3f},{b - 0.001:.3f})*(1+0.05*(it-{a:.3f})/{max(b - a, 0.1):.3f})"
+        return f"between(it,{a:.3f},{b - 0.001:.3f})*{sc:.3f}"
+    base = "+".join(step(*s) for s in steps) or "1"
+    # a punch eases in and out (0.15 s); a close-up (ease 0) cuts straight in and holds
+    def ramp1(a, b, sc, e):
+        if e <= 0:
+            return f"({sc - 1:.3f})*between(it,{a:.3f},{b - 0.001:.3f})"
+        return f"({sc - 1:.3f})*clip((it-{a:.3f})/{e},0,1)*clip(({b:.3f}-it)/{e},0,1)"
+    ramp = "+".join(ramp1(*p) for p in punches) or "0"
     z = f"max(1,({base}))*(1+{ramp})"
     # keep the face height fixed while zooming (x centred, y anchored at face_y of the frame)
     return (f"zoompan=z='{z}':x='(iw-iw/zoom)/2':y='{face_y}*(ih-ih/zoom)':d=1:s={W}x{H}:fps={FPS}")
+
+
+def grade_filter(kit):
+    """The kit's colour grade on the footage: contrast, saturation, brightness, warmth, vignette.
+    Kept gentle so skin stays natural (no film grain, no heavy crush)."""
+    g = kit.get("grade") or {}
+    if not g:
+        return None
+    parts = [f"eq=contrast={g.get('contrast', 1):.3f}:saturation={g.get('saturation', 1):.3f}:brightness={g.get('brightness', 0):.3f}"]
+    w = g.get("warmth", 0)
+    if w:
+        parts.append(f"colorbalance=rm={w:.3f}:bm={-w:.3f}:rh={w / 2:.3f}:bh={-w / 2:.3f}")
+    v = g.get("vignette", 0)
+    if v:
+        parts.append(f"vignette=a={0.25 + 0.5 * v:.3f}")
+    return ",".join(parts)
+
+
+def video_chain(zf, grade):
+    return ",".join(x for x in (zf, grade) if x) or None
 
 
 SFX_GAP = 3.5            # seconds between any two sounds on highlighted words
@@ -498,10 +624,11 @@ def write_concat(entries, path):
     return path
 
 
-def render_base(proj, zoom):
-    """The cut with its zooms baked in. Needed when someone has to be cut out of the zoomed picture."""
+def render_base(proj, zoom, src=None):
+    """The cut with its zooms (and grade) baked in. Needed when someone has to be cut out of the zoomed picture."""
     out = proj / "base.mp4"
-    run(["ffmpeg", "-v", "error", "-y", "-i", str(proj / "rough.mp4"), "-vf", f"{zoom},setsar=1" if zoom else "null",
+    run(["ffmpeg", "-v", "error", "-y", "-i", str(src or proj / "rough.mp4"), "-i", str(proj / "rough.mp4"),
+         "-map", "0:v", "-map", "1:a", "-vf", f"{zoom},setsar=1" if zoom else "null",
          "-c:v", "libx264", "-preset", "veryfast", "-crf", "14", "-c:a", "copy", str(out)])
     return out
 
@@ -525,11 +652,32 @@ def person_masks(proj, base, windows):
     return dirs
 
 
-def composite(proj, entries, out_name, zoom=None, cues=(), sfx_db=-14, behind=None, gifs=()):
+# The kits' sound volumes were tuned against voices recorded at about this loudness (phone, no levelling).
+SFX_TUNED_AT = -26.0
+
+
+def prepare_voice(proj):
+    """The speaker's sound, cleaned for posting: low rumble and handling noise filtered out, and the
+    loud and quiet parts evened out gently. Returns (voice.wav, gain in dB to reach TARGET_LUFS, the
+    raw loudness). Without this every reel went out as loud as the phone happened to record it
+    (the welcome sample measured -31.6 LUFS, far quieter than Instagram's -14)."""
+    rough = proj / "rough.mp4"
+    raw, _ = loudness(rough)
+    voice = proj / "voice.wav"
+    run(["ffmpeg", "-v", "error", "-y", "-i", str(rough), "-vn", "-af",
+         "highpass=f=70,acompressor=threshold=0.125:ratio=3:attack=10:release=200:makeup=1",
+         "-ar", "48000", "-ac", "2", "-c:a", "pcm_s16le", str(voice)])
+    lev, _ = loudness(voice)
+    if lev is None or raw is None:
+        return voice, 0.0, raw
+    return voice, max(-12.0, min(TARGET_LUFS - lev, 30.0)), raw
+
+
+def composite(proj, entries, out_name, zoom=None, cues=(), sfx_db=-14, behind=None, gifs=(), voice=None, src_video=None):
     """Layers, bottom to top: the video → anything 'behind' the speaker → the speaker cut out
     again (only during those moments) → captions and graphics. Plus sound effects."""
     front = write_concat(entries, proj / "overlay.ffconcat")
-    src = behind["base"] if behind else proj / "rough.mp4"
+    src = behind["base"] if behind else (src_video or proj / "rough.mp4")
     inputs = ["-i", str(src), "-f", "concat", "-safe", "0", "-i", str(front)]
     n_win = 0
     if behind:
@@ -543,6 +691,9 @@ def composite(proj, entries, out_name, zoom=None, cues=(), sfx_db=-14, behind=No
     first_sfx = first_gif + len(gifs)
     for t, name in cues:
         inputs += ["-i", str(sfx_file(name))]
+    v_in = first_sfx + len(cues)
+    if voice:
+        inputs += ["-i", str(voice["file"])]
 
     if behind:
         fc = f"[0:v]split={n_win + 1}[bb]" + "".join(f"[w{i}]" for i in range(n_win)) + ";"
@@ -572,15 +723,20 @@ def composite(proj, entries, out_name, zoom=None, cues=(), sfx_db=-14, behind=No
                f"[{'base' if k == 0 else f'gb_{k}'}][g{k}]overlay={x}:{y}:eof_action=pass[gb_{k + 1}];")
     top = f"gb_{len(gifs)}" if gifs else "base"
     fc += f"[1:v]fps={FPS},format=rgba[ov];[{top}][ov]overlay=0:0:eof_action=pass:format=auto,format=yuv420p[v]"
-    amap = "0:a"
-    if cues:
-        parts = []
-        for k, (t, name) in enumerate(cues):
-            ms = int(round(t * 1000))
-            fc += f";[{k + first_sfx}:a]adelay={ms}|{ms},volume={sfx_db}dB[s{k}]"
-            parts.append(f"[s{k}]")
-        fc += f";[0:a]{''.join(parts)}amix=inputs={len(cues) + 1}:normalize=0:duration=first[a]"
-        amap = "[a]"
+    # sound: the cleaned voice + effects, then the whole mix lifted to posting loudness, with a limiter
+    # so no peak clips. Effects keep the balance the kits were tuned for, whatever the recording level.
+    vsrc = f"[{v_in}:a]" if voice else "[0:a]"
+    gain = voice["gain"] if voice else 0.0
+    sfx_rel = sfx_db + ((voice["raw"] - SFX_TUNED_AT) if voice and voice.get("raw") is not None else 0.0)
+    parts = []
+    for k, (t, name) in enumerate(cues):
+        ms = int(round(t * 1000))
+        fc += f";[{k + first_sfx}:a]adelay={ms}|{ms},volume={sfx_rel:.2f}dB[s{k}]"
+        parts.append(f"[s{k}]")
+    mix = f"{vsrc}{''.join(parts)}amix=inputs={len(cues) + 1}:normalize=0:duration=first," if cues else f"{vsrc}"
+    peak = 10 ** ((MAX_PEAK - 1.0) / 20)                  # headroom: the AAC encode adds a little to peaks
+    fc += f";{mix}volume={gain:.2f}dB,alimiter=limit={peak:.3f}:level=0:attack=3:release=60[a]"
+    amap = "[a]"
     run(["ffmpeg", "-v", "error", "-y", *inputs, "-filter_complex", fc,
          "-map", "[v]", "-map", amap, "-c:v", "libx264", "-preset", "medium", "-crf", "21", "-maxrate", "14M", "-bufsize", "28M",
          "-c:a", "aac", "-b:a", "192k", "-movflags", "+faststart", str(proj / f"tmp-{out_name}")])
@@ -627,32 +783,48 @@ def build(proj, kit_name, no_open, out="final"):
     timeline = {
         "kit": kit,
         "safe": {"face_top": round(fs["top"] * H), "face_bottom": round(fs["bottom"] * H)} if fs else None,
-        "captions": caption_chunks(words, edl, kit["captions"]["max_words"], set(plan.get("highlight_words", []))),
+        "captions": caption_chunks(apply_spelling(words, plan), edl, kit["captions"]["max_words"],
+                                   set(plan.get("highlight_words", []))),
         "events": resolve_events(plan, edl, total, words),
     }
     timeline["visuals"], timeline["icons"] = resolve_visuals(plan, edl, words, total, timeline["events"])
+    timeline["reels"], timeline["profile"] = own_reels(), own_profile()
     if timeline["safe"]:
         timeline["safe"]["face_left"], timeline["safe"]["face_right"] = face_sides(fdata)
     save_json(proj / "timeline.json", timeline)
+    steps, punches, face_y = zoom_plan(edl, plan, kit, total)
+    timeline["zoom"] = {"steps": steps, "punches": punches, "face_y": face_y}   # the stage places graphics around the zoomed face
     gif_rects(timeline)
     entries, rendered = render_overlay(timeline, total, proj / "overlay")
-    steps, punches, face_y = zoom_plan(edl, plan, kit, total)
     typed = typing_cues(proj, timeline["visuals"]) if plan.get("sfx", True) else []
     cues = sfx_cues(timeline, kit, (plan.get("sfx_extra") or []) + typed, total) if plan.get("sfx", True) else []
-    timeline["zoom"] = {"steps": steps, "punches": punches}
+    timeline["zoom"] = {"steps": steps, "punches": punches, "face_y": face_y}
     timeline["sfx"] = cues
     save_json(proj / "timeline.json", timeline)
-    zf = zoom_filter(steps, punches, face_y)
+    # sharp zooms: cut the zoomed framing from a 4K version of the cut when the source is 4K
+    big = any(p[2] >= 1.12 for p in punches) or any(abs(s[2]) >= 1.08 for s in steps)
+    hq = None
+    if big and kit.get("zoom", {}).get("sharp", True):
+        import roughcut
+        t_hq = time.time()
+        hq = roughcut.render_hq(proj)
+        if hq:
+            print(f"Sharp zooms: using the 4K cut ({time.time() - t_hq:.0f}s).")
+    zf = video_chain(zoom_filter(steps, punches, face_y, roughcut.HQ if hq else (W, H)), grade_filter(kit))
+    src_video = hq or proj / "rough.mp4"
     behind = None
-    windows = [(e["start"], e["end"]) for e in timeline["events"] if e["type"] == "behind"]
+    windows = [(e["start"], e["end"]) for e in timeline["events"] if e["type"] in ("behind", "orbit")]
     if windows:
-        base = render_base(proj, zf)
+        base = render_base(proj, zf, src_video)
         b_entries, _ = render_overlay(timeline, total, proj / "overlay-behind", layer="behind")
         behind = {"base": base, "entries": b_entries, "windows": windows,
                   "masks": person_masks(proj, base, windows)}
     gifs = [{"file": v["file"], "start": v["start"], "end": v["end"], "full": v.get("at") == "full", "rect": v.get("rect")}
-            for v in timeline["visuals"] if v["kind"] == "gif" and (v.get("at") == "full" or v.get("rect"))]
-    composite(proj, entries, f"{out}.mp4", zf, cues, kit.get("sfx", {}).get("volume_db", -14), behind, gifs)
+            for v in timeline["visuals"] if v["kind"] in ("gif", "insert") and (v.get("at") == "full" or v.get("rect"))]
+    vfile, gain, raw = prepare_voice(proj)
+    composite(proj, entries, f"{out}.mp4", zf, cues, kit.get("sfx", {}).get("volume_db", -14), behind, gifs,
+              voice={"file": vfile, "gain": gain, "raw": raw}, src_video=src_video)
+    vfile.unlink(missing_ok=True)
     print(f"Built {fmt_t(total)} reel in {time.time() - t0:.0f}s with the '{kit['name']}' kit "
           f"({len(timeline['captions'])} captions, {len(timeline['events'])} moments, {len(punches)} punch-ins, "
           f"{len(cues)} sound effects, {rendered} unique frames).")
@@ -660,8 +832,20 @@ def build(proj, kit_name, no_open, out="final"):
         from collections import Counter
         sset = (kit.get("sfx") or {}).get("palette") or "kit's own list"
         print(f"SOUNDS=set: {sset}; " + ", ".join(f"{n} ×{c}" for n, c in Counter("typing" if n.endswith(".wav") else n for _, n in cues).most_common()))
+    lufs, pk = loudness(proj / f"{out}.mp4")
+    if lufs is not None:
+        ok = abs(lufs - TARGET_LUFS) <= 2 and pk <= MAX_PEAK + 0.5
+        print(f"LOUDNESS={lufs:.1f} LUFS, peak {pk:.1f} dB ({'ok for Instagram' if ok else 'CHECK: aim for -14 LUFS, peak under -1'}; "
+              f"recorded at {raw:.1f})" if raw is not None else f"LOUDNESS={lufs:.1f} LUFS, peak {pk:.1f} dB")
+    issues = timeline.get("safe_issues") or []
+    for x in issues[:12]:
+        print("SAFE ZONE:", x)
+    if issues:
+        print(f"SAFE ZONE: {len(issues)} spot(s) where a graphic sits under Instagram's buttons or text. Fix them before handing back.")
     cover = make_cover(proj, kit, timeline, fdata, plan, out.replace("final", "cover") + ".jpg")
     check_sheet(proj, timeline, proj / f"{out}.mp4")
+    cut_check(proj, edl, proj / f"{out}.mp4")
+    phone_copy(proj, proj / f"{out}.mp4")
     if out == "final":                                   # an easy-to-find copy for posting
         fin = LAB / "Finished reels"
         fin.mkdir(exist_ok=True)

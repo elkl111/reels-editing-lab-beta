@@ -1,0 +1,134 @@
+{
+  "name": "Moody",
+  "preset": true,
+  "description": "Dark editorial studio: the room falls back, you stay lit; tiny wide-spaced capitals and big serif words in warm cream. Calm authority, interview-style.",
+  "fonts": {
+    "display": {
+      "family": "DM Serif Display",
+      "google": true,
+      "weight": 400
+    },
+    "italic": {
+      "family": "DM Serif Display",
+      "google": true,
+      "weight": 400,
+      "italic": true
+    },
+    "display_bold": {
+      "family": "Montserrat",
+      "google": true,
+      "weight": 600
+    },
+    "poster": {
+      "family": "DM Serif Display",
+      "google": true,
+      "weight": 400
+    },
+    "label": {
+      "family": "Montserrat",
+      "google": true,
+      "weight": 500
+    }
+  },
+  "colors": {
+    "cream": "#F2EDE4",
+    "night": "#14151A",
+    "smoke": "#2A2C33",
+    "sand": "#CDBFA8",
+    "rust": "#B5653E"
+  },
+  "roles": {
+    "ink": "night",
+    "caption_text": "cream",
+    "caption_outline": "night",
+    "caption_active": "sand",
+    "highlight_blocks": [
+      "sand",
+      "cream"
+    ],
+    "hook_card": "night",
+    "hook_text": "cream",
+    "statement_bg": "night",
+    "statement_text": "cream",
+    "label_bg": "night",
+    "label_text": "cream",
+    "accent_pill": "rust"
+  },
+  "style": {
+    "caption_outline": 0,
+    "caption_case": "uppercase",
+    "hook": "bare",
+    "hook_size": 104,
+    "hook_case": "none",
+    "label": "pill",
+    "label_mark": "·",
+    "radius": 10,
+    "shadow": "rgba(0, 0, 0, 0.85)",
+    "shadow_soft": "rgba(0, 0, 0, 0.35)",
+    "statement_case": "none",
+    "caption_tracking": 0.3
+  },
+  "moves": {
+    "mix_italic": true,
+    "highlighter_blocks": false,
+    "tilt_degrees": [
+      0,
+      0
+    ]
+  },
+  "captions": {
+    "mode": "word",
+    "font": "label",
+    "size": 40,
+    "case": "upper",
+    "max_words": 4,
+    "position_y": 0.68,
+    "position": "auto"
+  },
+  "visuals": {
+    "card": "glass",
+    "motion": "rise",
+    "icon_stroke": 1.5,
+    "density": "steady",
+    "card_color": "smoke",
+    "ink": "cream",
+    "accent": "sand",
+    "accent_text": "night",
+    "strong": "rust",
+    "strong_text": "cream",
+    "alert": "rust",
+    "word": "cream",
+    "glow": "night",
+    "word_style": "rise"
+  },
+  "grade": {
+    "contrast": 1.08,
+    "saturation": 0.86,
+    "brightness": -0.05,
+    "warmth": -0.01,
+    "vignette": 0.5,
+    "legibility": 0.45
+  },
+  "zoom": {
+    "jump": 1.0,
+    "punch": 1.06,
+    "close": 1.6,
+    "face_y": 0.36,
+    "push": true
+  },
+  "sfx": {
+    "palette": "soft",
+    "volume_db": -15
+  },
+  "label": {
+    "left": "YOUR NAME",
+    "right": "WHAT YOU TEACH"
+  },
+  "rules": {
+    "intensity": "signature",
+    "label": "not by default: only when the speaker introduces themselves or tells their own story",
+    "statement": "only on the core idea, a 1.6s slam, at most 1 per reel",
+    "captions_hidden_during_statement": true,
+    "shots": "alternate wide and close-up by section, like a studio interview"
+  }
+}

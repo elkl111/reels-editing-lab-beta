@@ -5,6 +5,7 @@ without a pause ("while most of the, while most of the people"), which Whisper m
 Whisper is kept as a fallback (--engine whisper).
 
 Usage:  uv run tools/transcribe.py <clip path or file name in inbox/> [--name my-reel] [--lang en]
+        uv run tools/transcribe.py <clip 1> <clip 2> … --name my-reel   (several clips for one reel, in filmed order)
 
 Creates projects/<name>/ with:
   project.json     source path, duration
@@ -174,14 +175,18 @@ def group_phrases(words):
     return phrases
 
 
-def write_lines_md(proj: Path, words, duration: float):
+def write_lines_md(proj: Path, words, duration: float, clips=None):
     phrases = group_phrases(words)
+    marks = list(clips or [])
     out = [f"# Transcript phrases ({fmt_t(duration)} total, {len(words)} words)",
            "",
            "Format: P# [first_word-last_word] start→end | text   (pauses over 0.35s shown as ·· gap ··)",
            ""]
     prev_end = 0.0
     for n, ph in enumerate(phrases, 1):
+        while marks and ph[0]["s"] >= marks[0]["start"] - 0.01:      # several clips: mark where each begins
+            m = marks.pop(0)
+            out.append(f"── clip {m['n']}: {m['file']} ({fmt_t(m['start'])}→{fmt_t(m['end'])}) ──")
         gap = ph[0]["s"] - prev_end
         if gap >= PHRASE_GAP:
             out.append(f"   ·· {gap:.1f}s gap ··")
@@ -196,7 +201,7 @@ def write_lines_md(proj: Path, words, duration: float):
 
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("clip")
+    ap.add_argument("clip", nargs="+", help="one clip, or several filmed for the same reel (in order)")
     ap.add_argument("--name")
     ap.add_argument("--lang", default=None, help="whisper only: en, es, ... (auto-detect if omitted)")
     ap.add_argument("--engine", choices=["parakeet", "whisper"], default=None,
@@ -204,16 +209,34 @@ def main():
     args = ap.parse_args()
     require("ffmpeg")
 
-    original = resolve_clip(args.clip)
+    originals = [resolve_clip(c) for c in args.clip]
+    original = originals[0]
     name = args.name or slug(original.name)
     import intake
     proj = project_dir(name)
-    clip = intake.prepare(original, proj)          # beta checks; HDR → standard-colour copy
+    clips = None
+    if len(originals) == 1:
+        clip = intake.prepare(original, proj)          # beta checks; HDR → standard-colour copy
+    else:
+        ready = [intake.prepare(o, proj, f"source-sdr-{k + 1}.mov") for k, o in enumerate(originals)]
+        total = sum(ffprobe_duration(c) for c in ready)
+        if total > intake.MAX_MIN * 60:
+            print(f"PROBLEM: Together these clips run {total / 60:.0f} minutes. The beta takes up to about "
+                  f"{intake.WARN_MIN} minutes per reel. Leave out the clips you don't need.")
+            raise SystemExit("INTAKE=refused")
+        clip, spans = intake.join(ready, proj)
+        clips = [{"n": k + 1, "file": o.name, "start": a, "end": b} for k, (o, (a, b)) in enumerate(zip(originals, spans))]
+        print(f"Joined {len(originals)} clips ({fmt_t(total)}).")
     duration = ffprobe_duration(clip)
 
     meta_p = proj / "project.json"
     meta = load_json(meta_p) if meta_p.exists() else {"created": datetime.now().isoformat(timespec="seconds")}
     meta.update({"name": name, "source": str(clip), "original": str(original), "duration": round(duration, 2)})
+    if clips:
+        meta["clips"] = clips
+        meta["original"] = [str(o) for o in originals]
+    else:
+        meta.pop("clips", None)
 
     tr_p = proj / "transcript.json"
     cached = load_json(tr_p) if tr_p.exists() else {}
@@ -244,7 +267,7 @@ def main():
               f"{len(silences)} pauses found, engine: {engine}).")
 
     save_json(meta_p, meta)
-    n = write_lines_md(proj, words, duration)
+    n = write_lines_md(proj, words, duration, meta.get("clips"))
     print(f"{n} phrases → {proj / 'lines.md'}")
     print(f"PROJECT={proj}")
 

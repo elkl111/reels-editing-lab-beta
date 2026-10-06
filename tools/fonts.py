@@ -3,7 +3,7 @@
 Usage:  uv run tools/fonts.py "Instrument Serif" [--weight 400] [--italic]
 
 In a kit, a font is either a file the user owns:
-    "display": {"family": "Awesome Serif", "file": "fonts/private/AwesomeSerif-MediumTall.otf", "weight": 500}
+    "display": {"family": "My Brand Serif", "file": "fonts/private/MyBrandSerif-Medium.otf", "weight": 500}
 or a free Google Font (fetched automatically by build.py the first time):
     "display": {"family": "Instrument Serif", "google": true, "weight": 400, "italic": false}
 Google Fonts are open-licensed (OFL), so kits that use them are safe to share.

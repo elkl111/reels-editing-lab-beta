@@ -111,9 +111,10 @@ If they have a brand or design doc (a `.md`, PDF or Google Doc export, like a `B
    | headline and display font | `fonts.display` / `poster`, its italic as `fonts.italic`, a sans for `label` and captions |
    | signature moves (italic mixing, highlight blocks behind words, tilt, stickers, all caps) | `moves` and `style` (`hook_case`, `statement_case`, `radius`) |
    | mood ("calm", "playful", "luxury") | `visuals.motion`, `visuals.density`, `sfx.palette` |
+   | photo or video style (warm, moody, bright, film-like) | `grade`: `contrast`, `saturation`, `brightness`, `warmth` (−0.05 to 0.05), `vignette` (0–0.5), `legibility` (dark gradients behind text, 0–0.5). Keep skin natural: no film grain, no heavy crush. |
    | icons, graphic elements, stickers, buttons (line weight, rounded or square, filled colour tiles) | `visuals.icon_stroke` (thin 1.5 → bold 2.5), `visuals.radius`, `visuals.card` (solid / outline / glass), `visuals.accent` (icon tile colour), `visuals.rotate` (chip and sticker colours) |
 
-3. **Paid or custom fonts:** look for the font files. If they have them, they drop them in `fonts/private/` and the kit uses `"file"`. If not, pick the **closest free Google Font**: match the contrast, the width (tall or condensed?), and whether an italic exists. Tell them what you substituted and why. For example, "Awesome Serif → Instrument Serif: same tall, high-contrast feel, has an italic."
+3. **Paid or custom fonts:** look for the font files. If they have them, they drop them in `fonts/private/` and the kit uses `"file"`. If not, pick the **closest free Google Font**: match the contrast, the width (tall or condensed?), and whether an italic exists. Tell them what you substituted and why. For example, "your paid serif → Instrument Serif: same tall, high-contrast feel, has an italic."
 4. **Show it:** render `--looks <their-kit>` and build `sample-mine`. Say which parts came straight from their file and which you interpreted.
 5. **Keep it in sync:** if they update the design file later ("I changed my brand colours"), re-read `brand/design.md` and update the kit the same way.
 
@@ -136,6 +137,7 @@ In about 3 lines, tell them:
 - their look is saved and every reel will use it automatically
 - how to edit a reel: drop a clip in `inbox/` or the chat and say "edit this reel". You cut it, they review the lines in chat, and you build it in their look.
 - that pop-up graphics illustrate what they say; "show me the graphics" plays the catalogue of all 14 in their look
+- optional extras: drop 6 of their own reels in the chat for the "reels orbiting you" effect and the profile grid (`tools/reels.py add`); give their real Instagram numbers once (saved to `brand/instagram.json`) for the follow animation
 - that they can ask for a meme or GIF on any line ("the David Rose 'ew' meme here"). Searching needs a free GIPHY key, which you'll help them get the first time; their own GIF files work right away
 - that colours and fonts are never locked: "use these colours instead" works on any reel, any time
 - that they can change anything any time by just saying so ("captions smaller", "no sounds on this one", "try the Loud look on this reel")

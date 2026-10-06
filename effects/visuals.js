@@ -5,7 +5,8 @@
 (function () {
   const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
   const ease = x => 1 - Math.pow(1 - clamp(x, 0, 1), 3);
-  const esc = s => String(s == null ? '' : s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+  // on-screen text: no em dashes (they read as AI-written); a comma does the same job
+  const esc = s => String(s == null ? '' : s).replace(/\s*—\s*/g, ', ').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
   const rich = s => esc(s).replace(/\*([^*]+)\*/g, '<em>$1</em>');
   const Q = x => Math.round(clamp(x, 0, 1) * 30);
 
@@ -14,17 +15,20 @@
     gentle: { dur: 0.45, over: 0.0, rise: 26, rot: 0 },
     snappy: { dur: 0.24, over: 1.35, rise: 14, rot: 0 },
     bouncy: { dur: 0.38, over: 2.0, rise: 30, rot: 4 },
+    blur: { dur: 0.22, over: 0.0, rise: 0, rot: 0, blur: 22, from: 1.22 },      // blur-pop: sharpens into place
+    rise: { dur: 0.5, over: 0.0, rise: 40, rot: 0, blur: 8, from: 1.0 },         // calm editorial rise
   };
   function backC(x, c) { x = clamp(x, 0, 1); return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); }
   // entrance at t0 → {o, tf, k}: opacity, CSS transform, and a key fragment
   function enter(t, t0, extra) {
     const x = (t - t0) / M.dur;
     if (x <= 0) return { o: 0, tf: 'scale(.8)', k: 0, on: false };
-    const s = M.over > 0 ? 0.8 + 0.2 * backC(x, M.over) : 0.92 + 0.08 * ease(x);
+    const s = M.from ? M.from + (1 - M.from) * ease(x) : M.over > 0 ? 0.8 + 0.2 * backC(x, M.over) : 0.92 + 0.08 * ease(x);
     const y = (1 - ease(x)) * M.rise, r = (1 - ease(x)) * M.rot;
-    return { o: ease(x * 1.5), tf: `translateY(${y}px) scale(${s}) rotate(${r}deg) ${extra || ''}`, k: Q(x), on: true };
+    const bl = M.blur ? M.blur * (1 - ease(x)) : 0;
+    return { o: ease(x * 1.5), tf: `translateY(${y}px) scale(${s}) rotate(${r}deg) ${extra || ''}`, k: Q(x), on: true, bl };
   }
-  const st = e => `opacity:${e.o};transform:${e.tf}`;
+  const st = e => `opacity:${e.o};transform:${e.tf}${e.bl > 0.3 ? `;filter:blur(${e.bl.toFixed(1)}px)` : ''}`;
   const icon = n => n && window.TL.icons && window.TL.icons[n]
     ? `<span class="v-icon"><svg viewBox="0 0 24 24">${window.TL.icons[n]}</svg></span>` : '';
   const itemTimes = (v, items, gap) => items.map((it, k) => (typeof it === 'object' && it.t != null) ? it.t : v.start + 0.15 + k * (gap || 0.35));
@@ -69,14 +73,17 @@
     const ft = S.face_top || 420, fb = S.face_bottom || 1000, fl = S.face_left || 300, fr = S.face_right || 780;
     const head = ft - 90;
     // top band runs down to the hairline: pieces may overlap hair, never the face
-    const top = { x: 50, y: 60, w: 980, h: Math.max(ft - 70, 360) };
-    let cy = fb + 70, ch = Math.min(1580 - cy, 560);
-    if (ch < 260) { cy = 1580 - 300; ch = 300; }
+    // everything stays inside Instagram's safe zone (stage.html SAFE_ZONE): below its header, above its
+    // username and caption, and clear of the like / comment / share column on the right
+    const SZ = window.SAFE_ZONE || { top: 170, bottom: 1470 };
+    const top = { x: 50, y: SZ.top, w: 980, h: Math.max(ft - 10 - SZ.top, 300) };
+    let cy = fb + 70, ch = Math.min(SZ.bottom - cy, 560);
+    if (ch < 240) { cy = SZ.bottom - 260; ch = 260; }
     return {
-      top, chest: { x: 60, y: cy, w: 960, h: ch },
-      left: { x: 20, y: head - 60, w: Math.max(fl - 30, 250), h: fb - head + 160 },
-      right: { x: Math.min(fr + 10, 1060 - 250), y: head - 60, w: Math.max(1060 - fr - 10, 250), h: fb - head + 160 },
-      full: { x: 60, y: 200, w: 960, h: 1400 },
+      top, chest: { x: 100, y: cy, w: 880, h: ch },
+      left: { x: 40, y: Math.max(head - 60, SZ.top), w: Math.max(fl - 50, 250), h: fb - head + 160 },
+      right: { x: Math.min(fr + 10, 1040 - 250), y: Math.max(head - 60, SZ.top), w: Math.max(1040 - fr - 10, 250), h: fb - head + 160 },
+      full: { x: 60, y: SZ.top, w: 920, h: SZ.bottom - SZ.top },
     };
   }
 
@@ -131,6 +138,20 @@
       const body = done ? rich(v.text) : esc(plain.slice(0, Math.max(n, 0)));
       const cur = !done || blink ? '<span class="cur"></span>' : '';
       return { parts: [{ zone: v.at || 'top', html: `<div class="v-disp v-word">${body}${cur}</div>` }], key: 'wt' + Math.min(n, 999) + (blink ? 1 : 0) };
+    }
+    const style = v.style || (window.TL.kit.visuals || {}).word_style;
+    if (style === 'rise') {
+      // each letter rises out of its own line, one after another
+      let k = 0, key = 'wr';
+      const words = String(v.text).split(/(\s+)/).map(w => {
+        if (/^\s+$/.test(w)) return ' ';
+        const it = /^\*.*\*$/.test(w), bare = w.replace(/\*/g, '');
+        return `<span class="rw${it ? ' it' : ''}">` + [...bare].map(ch => {
+          const p = ease((t - v.start - 0.028 * k++) / 0.55); key += Math.round(p * 12);
+          return `<span class="rl"><span style="transform:translateY(${(1 - p) * 115}%)">${esc(ch)}</span></span>`;
+        }).join('') + '</span>';
+      }).join('');
+      return { parts: [{ zone: v.at || 'top', html: `<div class="v-disp v-word v-rise">${words}</div>` }], key };
     }
     const e = enter(t, v.start);
     return { parts: [{ zone: v.at || 'top', html: `<div class="v-disp v-word" style="${st(e)}">${rich(v.text)}</div>` }], key: 'w' + e.k };
@@ -280,13 +301,50 @@
     const e = enter(t, v.start), w = v.win_w || 560, h = Math.round(w * (v.h || 1) / (v.w || 1));
     const html = `<div class="v-gif" style="${st(e)}">
       <div class="frame" style="width:${w}px;height:${Math.min(h, 640)}px"><div class="win" data-gif="${v._i}" style="${t - v.start < 0.3 ? 'background:var(--v-soft)' : ''}"></div></div>
-      ${v.caption ? `<div class="cap v-disp">${rich(v.caption)}</div>` : ''}</div>`;
+      ${v.caption ? `<div class="cap v-disp">${rich(v.caption)}</div>` : ''}
+      ${v.handle ? `<div class="handle v-ui">@${esc(String(v.handle).replace(/^@/, ''))}</div>` : ''}</div>`;
     return { parts: [{ zone: v.at || 'top', html }], key: 'g' + e.k + (t - v.start < 0.3 ? 'f' : '') };
+  };
+
+  K.insert = (v, t) => {
+    // a custom animated insert (its own transparent video), laid in by the build at this window
+    const e = enter(t, v.start), w = v.width || 640, h = Math.round(w * (v.h || 1) / (v.w || 1));
+    return { parts: [{ zone: v.at || 'top', html: `<div style="opacity:${e.o}"><div class="win" data-gif="${v._i}" style="width:${w}px;height:${h}px"></div></div>` }],
+             key: 'i' + e.k };
+  };
+
+  K.profile = (v, t) => {
+    // an Instagram-style profile: real numbers only (brand/instagram.json), Follow tapped, optional comment keyword
+    const P = window.TL.profile || {}, e = enter(t, v.start);
+    const tapT = v.tap_t != null ? v.tap_t : v.start + 0.8, tapped = t >= tapT;
+    const dot = Math.max(0, 1 - Math.abs(t - tapT) / 0.25);
+    const grid = (window.TL.reels || []).slice(0, 6).map(r => `<i style="background-image:url('${r.thumb_url}')"></i>`).join('')
+      || Array.from({ length: 6 }, () => '<i></i>').join('');
+    let sheet = '', sk = '';
+    if (v.keyword) {
+      const kt = v.keyword_t != null ? v.keyword_t : tapT + 0.7, sp = ease((t - kt) / 0.3);
+      const n = clamp(Math.floor((t - kt - 0.3) / 0.07), 0, v.keyword.length);
+      const posted = t >= kt + 0.3 + v.keyword.length * 0.07 + 0.25;
+      sk = Q(sp) + ':' + n + (posted ? 'p' : '');
+      sheet = `<div class="sheet" style="transform:translateY(${(1 - sp) * 110}%)"><div class="grab"></div>
+        <div class="row"><span class="av sm"></span><span class="in">${esc(v.keyword.slice(0, n))}${!posted ? '<span class="cur-ink"></span>' : ''}</span>
+        <span class="post${posted ? ' on' : ''}">Post</span></div></div>`;
+    }
+    const fmt = x => x == null ? '' : esc(x);
+    const html = `<div class="v-profile" style="${st(e)}">
+      <div class="head"><span class="av" ${P.avatar_url ? `style="background-image:url('${P.avatar_url}')"` : ''}></span>
+        <div class="stats"><div><b>${fmt(P.posts)}</b><span>posts</span></div><div><b>${fmt(P.followers)}</b><span>followers</span></div>
+        <div><b>${fmt(P.following)}</b><span>following</span></div></div></div>
+      <div class="nm">${esc(P.name || '')}</div><div class="bio">${esc(P.bio || '')}</div>
+      <div class="btns"><span class="fol${tapped ? ' done' : ''}">${tapped ? 'Following' : 'Follow'}</span><span class="msg">Message</span>
+        ${dot > 0 ? `<span class="tap" style="opacity:${dot};transform:scale(${1.4 - 0.4 * dot})"></span>` : ''}</div>
+      <div class="grid">${grid}</div>${sheet}</div>`;
+    return { parts: [{ zone: v.at || 'chest', html }], key: 'pr' + e.k + (tapped ? 'T' : '') + Math.round(dot * 8) + ':' + sk };
   };
 
   window.visualUsesTop = v => {
     if (v.at) return v.at === 'top' || v.at === 'full';
-    if (['person', 'phone'].includes(v.kind)) return false;
+    if (['person', 'phone', 'profile'].includes(v.kind)) return false;
     if (v.kind === 'chips') { const Z = zones(); return !((v.items || []).length <= 6 && Math.min(Z.left.w, Z.right.w) >= 300); }
     return true;
   };

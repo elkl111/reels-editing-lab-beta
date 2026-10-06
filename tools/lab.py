@@ -11,6 +11,16 @@ INBOX = LAB / "inbox"
 
 W, H, FPS = 1080, 1920, 30
 
+# Instagram Reels covers parts of the frame with its own buttons and text. Graphics stay out of them.
+# Bottom and right are strict (username, caption, audio row, like/comment/share sit on the video).
+# The top is lighter: only the corners carry the header, and a stricter line shrank top pop-ups too much.
+# effects/stage.html has the same numbers (SAFE_ZONE); keep the two in step.
+SAFE = {"top": 170, "bottom": 1470, "side": 35, "icons_x": 980, "icons_y": 1155}
+
+# Loudness for posting: Instagram plays reels at about -14 LUFS, so a reel mixed there isn't turned
+# down (too loud) or left quieter than the next reel in the feed (too quiet).
+TARGET_LUFS, MAX_PEAK = -14.0, -1.0
+
 
 def slug(name: str) -> str:
     s = re.sub(r"[^a-zA-Z0-9]+", "-", Path(name).stem).strip("-").lower()
@@ -74,3 +84,14 @@ def open_video(path):
 def replace_into(tmp, final):
     """Swap a finished render into place as a new file, never overwriting one in use."""
     Path(tmp).replace(final)
+
+
+def loudness(path):
+    """→ (integrated LUFS, true peak dBTP) of a file's sound, or (None, None) if it has none."""
+    r = subprocess.run(["ffmpeg", "-hide_banner", "-nostats", "-i", str(path), "-vn",
+                        "-af", "ebur128=peak=true", "-f", "null", "-"], capture_output=True, text=True)
+    summary = r.stderr.split("Summary:")[-1]
+    i = re.search(r"I:\s+(-?[\d.]+|-inf) LUFS", summary)
+    pk = re.search(r"Peak:\s+(-?[\d.]+|-inf) dBFS", summary)
+    val = lambda m: None if not m or m.group(1) == "-inf" else float(m.group(1))
+    return val(i), val(pk)

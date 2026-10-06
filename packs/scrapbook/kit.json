@@ -1,0 +1,129 @@
+{
+  "name": "Scrapbook",
+  "preset": true,
+  "based_on": "retro-editorial scrapbook",
+  "description": "Retro-editorial scrapbook: a tall serif with italic accents, periwinkle, cream and espresso, pink and butter highlight blocks, ticket-stub labels and a hand-placed tilt.",
+  "fonts": {
+    "display": {
+      "family": "Instrument Serif",
+      "google": true,
+      "weight": 400
+    },
+    "italic": {
+      "family": "Instrument Serif",
+      "google": true,
+      "weight": 400,
+      "italic": true
+    },
+    "display_bold": {
+      "family": "Archivo",
+      "google": true,
+      "weight": 700
+    },
+    "poster": {
+      "family": "DM Serif Display",
+      "google": true,
+      "weight": 400
+    },
+    "label": {
+      "family": "Archivo",
+      "google": true,
+      "weight": 600
+    }
+  },
+  "colors": {
+    "periwinkle": "#BFD4FA",
+    "cream": "#F4F2D6",
+    "espresso": "#4A0E07",
+    "olive": "#37461A",
+    "pink": "#EFC6DB",
+    "coral": "#EB8669",
+    "butter": "#F6E69C",
+    "gold": "#CAA545"
+  },
+  "roles": {
+    "ink": "espresso",
+    "caption_text": "cream",
+    "caption_outline": "espresso",
+    "caption_active": "butter",
+    "highlight_blocks": [
+      "pink",
+      "butter"
+    ],
+    "hook_card": "cream",
+    "hook_text": "espresso",
+    "statement_bg": "espresso",
+    "statement_text": "cream",
+    "label_bg": "cream",
+    "label_text": "espresso",
+    "accent_pill": "coral"
+  },
+  "style": {
+    "caption_outline": 0,
+    "shadow": "rgba(40, 8, 4, 0.8)",
+    "shadow_soft": "rgba(30, 10, 5, 0.28)",
+    "hook_size": 104,
+    "label": "ticket",
+    "label_mark": "✳",
+    "radius": 22,
+    "statement_case": "uppercase"
+  },
+  "moves": {
+    "mix_italic": true,
+    "highlighter_blocks": true,
+    "tilt_degrees": [
+      1.5,
+      4
+    ]
+  },
+  "captions": {
+    "mode": "word",
+    "font": "label",
+    "size": 58,
+    "case": "sentence",
+    "max_words": 4,
+    "position_y": 0.68,
+    "position": "auto"
+  },
+  "visuals": {
+    "card": "solid",
+    "motion": "snappy",
+    "icon_stroke": 2,
+    "density": "steady",
+    "rotate": [
+      "pink",
+      "butter",
+      "periwinkle"
+    ],
+    "accent": "pink",
+    "strong": "espresso",
+    "alert": "coral"
+  },
+  "label": {
+    "left": "YOUR NAME",
+    "right": "WHAT YOU TEACH"
+  },
+  "rules": {
+    "intensity": "signature",
+    "label": "not by default: only when the speaker introduces themselves or tells their own story",
+    "statement": "only on the core idea, a 1.6s slam, at most 1 per reel",
+    "captions_hidden_during_statement": true
+  },
+  "zoom": {
+    "jump": 1.07,
+    "punch": 1.13,
+    "face_y": 0.36
+  },
+  "sfx": {
+    "palette": "soft",
+    "volume_db": -13
+  },
+  "grade": {
+    "contrast": 1.03,
+    "saturation": 0.96,
+    "brightness": 0.01,
+    "warmth": 0.03,
+    "vignette": 0.15,
+    "legibility": 0.25
+  }
+}

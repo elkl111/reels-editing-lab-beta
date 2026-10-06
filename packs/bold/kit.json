@@ -105,7 +105,8 @@
   "zoom": {
     "jump": 1.1,
     "punch": 1.2,
-    "face_y": 0.36
+    "face_y": 0.36,
+    "close": 1.5
   },
   "sfx": {
     "palette": "punchy",
@@ -122,5 +123,13 @@
     "highlight": "1 key word every 3-4 chunks",
     "label": "not by default: only when the speaker introduces themselves or tells their own story",
     "captions_hidden_during_statement": true
+  },
+  "grade": {
+    "contrast": 1.07,
+    "saturation": 0.95,
+    "brightness": -0.01,
+    "warmth": -0.01,
+    "vignette": 0.3,
+    "legibility": 0.4
   }
 }

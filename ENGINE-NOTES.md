@@ -110,3 +110,30 @@ Every failure the Lab has had, why it happened, and the defence now built in. Re
   - The window stays filled with the card colour for its first 0.3s, until the clip fades in, so it never shows as an empty frame.
   - Tall clips go below the chin and wide ones above the head. The earlier of two pieces above the head makes way for the next.
   - When both the top and the chin area are busy, captions drop to the bottom of the screen.
+
+## 20. Graphics under Instagram's own buttons (compared with the video-edit skill, 2026-10-06)
+- **What happened:** captions could drop to 84–86% of the height and the name label sat at y 1500, both under Instagram's username, caption and audio row. Pop-ups could start at y 60 and run to y 1580. Nothing measured this.
+- **Defence:** one safe zone, `SAFE` in `tools/lab.py` = `SAFE_ZONE` in `effects/stage.html`: bottom 1470, sides 35, the like / comment / share column (x > 980 below y 1155), top 170. All the zones, captions, the hook and the label stay inside it. Low captions narrow so they clear the button column. A hook that doesn't fit above a high head shrinks (to 85% at most) instead of riding into the header.
+- **Check:** while rendering, `safeAudit()` measures every visible caption, hook, label and pop-up. The build prints `SAFE ZONE:` lines, and `verify.py --video final.mp4` repeats them.
+- **Why the top is 170, not 220:** at 220, top pop-ups on a high-framed face shrank by a third and chat windows became unreadable. Instagram's header only uses the corners up there.
+
+## 21. Every reel went out at whatever loudness the phone recorded
+- **What happened:** the welcome sample measured -31.6 LUFS and Elena's test reels -26 to -27. Instagram plays at about -14, so these sounded quieter than every reel around them. Nothing measured loudness.
+- **Defence:** `prepare_voice` filters rumble below 70 Hz and gently compresses the voice. The whole mix is then lifted to -14 LUFS, and a limiter keeps peaks under -1 dB. Sound effects keep the balance the kits were tuned at (voices around -26 LUFS, `SFX_TUNED_AT`) whatever the recording level.
+- **Check:** the build prints `LOUDNESS=`, and `verify.py --video final.mp4` flags more than 2 LU off target or peaks over -0.5 dB.
+
+## 22. Misheard names reached the captions
+- **What happened:** captions come straight from the transcript's words, so fixing "cloud" → "Claude" in `cut.json` changed the review list but not the screen.
+- **Defence:** `build.json` → `"spell": {"<word index>": "Claude"}` (and `""` to fold "Chat" "GPT" into "ChatGPT"), applied to captions only. Pop-up timing still uses the original words. The new-reel skill scans for misheard names, and `brand/names.txt` remembers them.
+
+## 23. Several clips for one reel
+- **Design:** `transcribe.py clip1 clip2 …` brings each clip to 1080×1920, 30 fps and PCM sound (an HDR clip becomes standard colour first). It adds 0.5 s of held frame and quiet after each clip and joins them into `source-joined.mov`. The quiet means no phrase or cut seam can run across two clips. `project.json` → `clips` holds where each clip starts, and `lines.md` marks it. Everything after that treats it as one clip, so retake picking works across clips. The originals are never touched. The beta length limit applies to the total.
+
+## 24. Close-ups put graphics on the face
+- **Found while testing:** pop-ups were placed around the face as measured on the un-zoomed cut. During a 1.5× close-up, the face is 1.5× bigger, so a top pop-up landed on the eyes.
+- **Defence:** the zoom plan goes into the timeline *before* the graphics render. `stage.html` (`zoomAt`, `zoomedSafe`) recomputes the face box for every frame's framing (jump zooms, punch-ins, close-ups, push-ins), so zones, captions and the hook follow the real face.
+
+## 25. Soft zooms on a 1080 cut
+- **Problem:** zooming 1.5× into a 1080×1920 cut upscales it, and it looks soft.
+- **Defence:** when a reel has real zooms and the source is 4K, `roughcut.render_hq` makes a 4K copy of the same cut (hardware-encoded, cached per segment). The zoom is then taken from it. The first build takes about 30 s longer; later builds reuse it.
+

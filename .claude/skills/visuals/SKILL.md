@@ -57,6 +57,39 @@ Filler, transitions and feelings without an object get nothing.
 
 **Icons:** find real names with `uv run tools/icons.py calendar money email` and never guess a name. The build stops on an unknown icon.
 
+### Signature pieces (need the user's own material)
+- **Their reels orbiting them:** `{"type": "orbit", "word": i, "until_word": j}` in `events` (not visuals).
+  - Use it on a line about their content or body of work ("I've made 300 of these").
+  - Needs `brand/reels/`. Fill it with `uv run tools/reels.py add <their reel files or a folder>`: their own exported reels, or downloaded from *their* profile with Apify if it's connected.
+  - Their reels pass behind and in front of them. At most once per reel.
+- **Instagram profile follow** for a call to action ("follow me", "comment BRAIN"):
+  - `{"kind": "profile", "word": i, "until_word": j, "keyword": "BRAIN"}`; `keyword` is optional and types into a comment sheet.
+  - Numbers come only from `brand/instagram.json` (`name, handle, posts, followers, following, bio, avatar`). If it's missing, **ask them for the real numbers** (or pull them from their own profile with Apify). Never estimate or invent.
+  - The grid uses `brand/reels/`. It gets a tap sound on Follow (and on Post).
+- **Another creator's reel as a card:** a `gif` with `"handle": "creatorname"`. The @handle shows under it.
+  - **Always credit**, and only use clips the user points to.
+- **Custom insert** (when no piece fits, e.g. a recreation of an app they use, or a file scrolling): build it with a sub-agent. See "Custom inserts" below.
+
+### Motion
+The kit's `visuals.motion`: `gentle` / `snappy` / `bouncy` / `blur` (a blur-pop that sharpens into place) / `rise` (calm editorial).
+- `"style": "rise"` on a `word` pop makes each letter rise out of its line, one after another. It's great for serif punch words. A kit can make it the default with `visuals.word_style: "rise"`.
+- Captions can blur-pop with `captions.pop: "blur"`.
+
+### Custom inserts (parallel sub-agents)
+1. **Lock the timing first:** the word times it must hit, converted to the insert's own clock (t = 0 when it appears).
+2. **Spawn one sub-agent per insert,** in the background and in parallel (Agent tool), while you keep building. Brief it with:
+   - **What it shows,** and the line it plays under. Use real data from the user only; anything else is a generic placeholder. No real people, and no copied logos.
+   - **Where to work:** `projects/<name>/inserts/<insert-name>/index.html`. Touch nothing else.
+   - **Size and duration:** for example 900×700 px and 2.6 s. The background stays transparent outside the card or window it draws.
+   - **The contract:** `window.renderAt(t)` draws the exact state at t seconds. No timers, CSS transitions or animations, because frames are captured one by one.
+     - Local fonts only (copy from `fonts/free/`).
+     - Text at least 24 px, using the user's kit colours.
+     - Typed text: one character per step of t.
+   - **Beats,** with times locked to the voice.
+   - **Render** with `uv run tools/insert.py <index.html> --dur <s> --w <w> --h <h>` → `insert.mov`, with alpha. Look at a few frames before reporting.
+   - **Report:** the path, the exact duration and the beat times (for sounds). Flag anything that looks off.
+3. **Place it** with `{"kind": "insert", "file": "…/insert.mov", "word": i, "width": 640}`. Add `sfx_extra` clicks on its beats.
+
 ### Memes and GIFs (only on request)
 - **Never add a meme unprompted.** Memes are a taste call. You may *suggest* one in your report ("a David Rose 'ew' would land on line 5"), and add it only if they say yes.
 - **Search:** `uv run tools/memes.py search "<show> <character> <emotion or words>" --project projects/<name>`. For example "schitts creek david ew" or "the office michael no god please no".
@@ -112,6 +145,12 @@ Rules at every density:
 - covering the face
 - colliding with a caption
 - illustrating the wrong word
+- listed in a `SAFE ZONE:` line (it sits under Instagram's username, caption or like / comment / share buttons). Fix every one: move the piece (`"at"`), shorten its text, or end it sooner, then rebuild until there are none.
+
+What goes on screen:
+- No em dashes in pop-up, hook or statement text. Use a comma, a full stop or a line break.
+- Real numbers only when they're the user's own and they said them. Chat windows, comments and DMs use generic placeholders, never a real person's name or a made-up result shown as proof.
+- Another creator's post or reel on screen gets their @handle on it.
 
 Then hand back as in the new-reel skill, adding one line such as: "12 pop-ups: chips for your 4 tasks, a chat window on 'prompt', a hub for your AI system…".
 

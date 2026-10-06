@@ -62,7 +62,7 @@ def check(clip):
     return not problems, problems, notes, p
 
 
-def prepare(clip, proj):
+def prepare(clip, proj, sdr_name="source-sdr.mov"):
     """Return the file to edit from: the clip itself, or a standard-colour copy of an HDR clip."""
     ok, problems, notes, p = check(clip)
     for n in notes:
@@ -73,10 +73,10 @@ def prepare(clip, proj):
         raise SystemExit("INTAKE=refused")
     if not p["hdr"]:
         return Path(clip)
-    out = proj / "source-sdr.mov"
+    out = proj / sdr_name
     if out.exists() and out.stat().st_mtime >= Path(clip).stat().st_mtime:
         return out
-    tmp = proj / "source-sdr.tmp.mov"
+    tmp = proj / sdr_name.replace(".mov", ".tmp.mov")
     r = subprocess.run(["avconvert", "-s", str(clip), "-p", "Preset1920x1080", "-o", str(tmp), "--replace"],
                        capture_output=True, text=True)
     if r.returncode != 0 or not tmp.exists():
@@ -84,6 +84,39 @@ def prepare(clip, proj):
     tmp.replace(out)
     print("NOTE: standard-colour copy ready.")
     return out
+
+
+def join(clips, proj):
+    """Several clips filmed for one reel → one file to edit from, in the order given.
+    Each clip is brought to the same size, frame rate and sound format, with half a second of
+    quiet after it, so no phrase can run across two clips. Returns (file, [(start, end) per clip])."""
+    out = proj / "source-joined.mov"
+    parts, spans, t = [], [], 0.0
+    stamp = [(str(c), Path(c).stat().st_mtime) for c in clips]
+    key_p = proj / "source-joined.key"
+    fresh = out.exists() and key_p.exists() and key_p.read_text() == json.dumps(stamp)
+    for k, c in enumerate(clips):
+        d = float(run(["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "csv=p=0", str(c)]).strip())
+        spans.append((round(t, 3), round(t + d, 3)))
+        t += d + 0.5
+        part = proj / f"clip{k + 1}.mov"
+        parts.append(part)
+        if fresh:
+            continue
+        print(f"NOTE: preparing clip {k + 1} of {len(clips)}…")
+        run(["ffmpeg", "-v", "error", "-y", "-i", str(c),
+             "-vf", "scale=1080:1920:force_original_aspect_ratio=increase,crop=1080:1920,fps=30,format=yuv420p,"
+                    "tpad=stop_mode=clone:stop_duration=0.5",
+             "-af", "aresample=48000,apad=pad_dur=0.5", "-ac", "2", "-t", f"{d + 0.5:.3f}",
+             "-c:v", "libx264", "-preset", "veryfast", "-crf", "14", "-c:a", "pcm_s16le", str(part)])
+    if not fresh:
+        lst = proj / "clips.txt"
+        lst.write_text("".join(f"file '{x.as_posix()}'\n" for x in parts))
+        run(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", str(lst), "-c", "copy", str(out)])
+        key_p.write_text(json.dumps(stamp))
+    for x in parts:
+        x.unlink(missing_ok=True)
+    return out, spans
 
 
 if __name__ == "__main__":

@@ -12,7 +12,7 @@ Asking for hooks before filming ("give me hooks for a reel about X") also uses t
 
 When they say anything like "I have a new reel", "edit this", or drop a clip, run the `new-reel` skill. In short:
 
-1. **Find the clip.** It's the newest video in `inbox/` unless they name or drag one in. Never modify or move the original.
+1. **Find the clip.** It's the newest video in `inbox/` unless they name or drag one in. If they filmed the reel in several clips, pass them all (in filmed order) and the Lab joins them. Never modify or move the original.
 2. **Transcribe:** `uv run tools/transcribe.py "<clip>" --name <short-kebab-name>`. Pick a name from what the reel is about once you've read it (rename the project folder if needed).
 3. **Rough cut:** read `projects/<name>/lines.md` and write `projects/<name>/cut.json` (rules in the `new-reel` skill). Then run `uv run tools/roughcut.py projects/<name>` (renders `rough.mp4`, opens it in QuickTime) and `uv run tools/verify.py projects/<name>` (listens back).
 4. **Review in the chat:** show the numbered lines with lengths. They reply in plain words ("drop 3", "end 9 at…"). Update `cut.json`, re-run, and say what changed in one or two lines. Repeat until they say "good".
@@ -26,7 +26,9 @@ Everything happens in the chat. Never send the user to a separate web page, canv
 - The original footage is never touched. Everything goes in `projects/<name>/`.
 - Transcripts are cached. Don't re-transcribe unless the source clip changed.
 - Before saying a cut is ready, run `tools/verify.py` and fix every "missing", "extra" or "repeated" spot. Never claim it's clean on the strength of an earlier check.
-- Keep the user's words verbatim on screen. Don't "improve" what they said.
+- Keep the user's words verbatim on screen. Don't "improve" what they said. Do fix names the transcriber misheard ("cloud" → "Claude") with `build.json` → `spell`.
+- Nothing on screen under Instagram's own buttons and text: the build prints `SAFE ZONE:` lines; fix every one.
+- The finished reel goes out at Instagram's loudness (about -14 LUFS). `verify.py --video final.mp4` checks it.
 
 ## Learning from failures
 
@@ -46,8 +48,8 @@ Everything happens in the chat. Never send the user to a separate web page, canv
 - `inbox/`: raw clips the user drops in
 - `Finished reels/`: a copy of every finished reel and its cover, ready to post
 - `projects/<name>/`: everything for one reel (transcript, cut.json, edl.json, rough.mp4)
-- `brand/`: who the user is and how they like to edit (`preferences.md` learns over time)
-- `packs/`: looks (kits). `editorial`, `playful`, `minimal`, `bold` are the starter presets (free Google Fonts; research-based, autumn 2026); the user's own kit is a copy saved at setup. Never edit a preset to suit one user; edit their kit.
+- `brand/`: who the user is and how they like to edit (`preferences.md` learns over time; `names.txt` holds names the transcriber gets wrong)
+- `packs/`: looks (kits). `editorial`, `playful`, `minimal`, `bold`, `moody` (dark editorial studio) and `scrapbook` (retro-editorial collage) are the starter presets; the user's own kit is a copy saved at setup. Never edit a preset to suit one user; edit their kit.
 - `effects/stage.html`: the graphics (captions, hook, label, statement, behind), all driven by the kit
 - `fonts/free/`: Google Fonts downloaded by `tools/fonts.py` (shareable). `fonts/private/`: fonts the user owns (never shared).
 - `sfx/`: the Lab's own sound effects (`sfx/LIBRARY.md`)

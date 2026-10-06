@@ -5,6 +5,7 @@ Whisper-based check can't see a restart that survived the cut). Also flags any p
 of 3+ words that is said twice in a row.
 
 Usage:  uv run tools/verify.py projects/<name> [--video rough.mp4]
+        uv run tools/verify.py projects/<name> --video final.mp4   (also checks loudness and Instagram's safe zone)
 
 Re-transcribes the rendered video and compares it with the lines in cut.json.
 Prints OK, or the exact words that were clipped or that leaked in from cut-away takes.
@@ -19,7 +20,7 @@ import tempfile
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-from lab import LAB, load_json
+from lab import LAB, MAX_PEAK, TARGET_LUFS, load_json, loudness
 
 MODEL = LAB / "models" / "whisper-large-v3-turbo"
 PARAKEET = LAB / "models" / "parakeet-tdt-0.6b-v3"
@@ -111,6 +112,16 @@ def main():
     for st, d in pauses(proj / args.video):
         if st + d < total - 0.05:                     # the natural fade-out at the very end is fine
             problems.append(f"pause: {d:.1f}s of silence at {st:.1f}s (dead air: trim it)")
+    if args.video != "rough.mp4":                     # the finished reel: posting loudness + Instagram's safe zone
+        lufs, pk = loudness(proj / args.video)
+        if lufs is not None and abs(lufs - TARGET_LUFS) > 2:
+            problems.append(f"loudness: {lufs:.1f} LUFS ({'too quiet' if lufs < TARGET_LUFS else 'too loud'} for Instagram; "
+                            f"aim for {TARGET_LUFS:.0f}). Rebuild with the current build.py.")
+        if pk is not None and pk > MAX_PEAK + 0.5:
+            problems.append(f"loudness: peaks reach {pk:.1f} dB and may crackle (keep them under {MAX_PEAK:.0f}).")
+        tl = proj / "timeline.json"
+        for x in (load_json(tl).get("safe_issues") or [])[:12] if tl.exists() else []:
+            problems.append(f"safe zone: {x}")
     score = difflib.SequenceMatcher(None, e, h, autojunk=False).ratio()
     report = {"match": round(score, 3), "problems": problems}
     (proj / "verify.json").write_text(json.dumps(report, indent=2))

@@ -208,14 +208,15 @@ def build_edl(words, lines, duration, env=None, silences=None):
     return segs, line_times, round(t, 3)
 
 
-def seg_key(src, s):
-    return hashlib.sha1(f"{src}|{s['start']}|{s['end']}|{s.get('pad', 0)}|{W}x{H}@{FPS}".encode()).hexdigest()[:12]
+def seg_key(src, s, size=(W, H)):
+    return hashlib.sha1(f"{src}|{s['start']}|{s['end']}|{s.get('pad', 0)}|{size[0]}x{size[1]}@{FPS}".encode()).hexdigest()[:12]
 
 
-def render_segment(src, seg, out):
+def render_segment(src, seg, out, size=(W, H)):
     d = seg["end"] - seg["start"]
     pad = seg.get("pad", 0.0)
-    vf = (f"scale={W}:{H}:force_original_aspect_ratio=increase,crop={W}:{H},"
+    w, h = size
+    vf = (f"scale={w}:{h}:force_original_aspect_ratio=increase,crop={w}:{h},"
           f"fps={FPS},format=yuv420p")
     af = f"afade=t=in:st=0:d={FADE},afade=t=out:st={max(d - FADE, 0):.3f}:d={FADE}"
     if pad > 0:                            # hold the last frame and add silence for the join
@@ -223,7 +224,8 @@ def render_segment(src, seg, out):
         af += f",apad=pad_dur={pad:.3f}"
     run(["ffmpeg", "-v", "error", "-y", "-ss", f"{seg['start']:.3f}", "-t", f"{d:.3f}", "-i", str(src),
          "-vf", vf, "-af", af, "-t", f"{d + pad:.3f}",
-         "-c:v", "libx264", "-preset", "veryfast", "-crf", "18",
+         *(["-c:v", "libx264", "-preset", "veryfast", "-crf", "18"] if size == (W, H)
+           else ["-c:v", "h264_videotoolbox", "-b:v", "45M", "-allow_sw", "1"]),
          "-c:a", "aac", "-b:a", "192k", "-ar", "48000", "-ac", "2", str(out)])
 
 
@@ -250,6 +252,49 @@ def render(proj, src, segs):
         if f.name not in keep:
             f.unlink()
     return len(jobs), len(segs), time.time() - t0
+
+
+HQ = (2160, 3840)
+
+
+def render_hq(proj):
+    """The same cut at 4K, for sharp punch-ins and close-ups (a 1.5x zoom on a 1080 cut looks soft).
+    Only when the source really is 4K; cached per segment like the normal cut. Returns the path or None."""
+    edl = load_json(proj / "edl.json")
+    src = Path(edl["source"])
+    out = run(["ffprobe", "-v", "error", "-select_streams", "v:0", "-show_entries", "stream=width,height:stream_side_data=rotation",
+               "-of", "json", str(src)])
+    import json as _j
+    st = _j.loads(out)["streams"][0]
+    w, h = st["width"], st["height"]
+    if any(abs(int(sd.get("rotation", 0))) % 180 == 90 for sd in st.get("side_data_list", [])):
+        w, h = h, w
+    if h < 3000:
+        return None
+    cache = proj / "segments-hq"
+    cache.mkdir(exist_ok=True)
+    files, jobs = [], []
+    for sg in edl["segments"]:
+        f = cache / f"{seg_key(src, sg, HQ)}.mp4"
+        files.append(f)
+        if not f.exists():
+            jobs.append((sg, f))
+    final = proj / "rough-hq.mp4"
+    tag = "|".join(f.name for f in files)
+    if not jobs and final.exists() and (proj / "rough-hq.txt").exists() and (proj / "rough-hq.txt").read_text() == tag:
+        return final
+    with ThreadPoolExecutor(max_workers=3) as ex:
+        list(ex.map(lambda j: render_segment(src, j[0], j[1], HQ), jobs))
+    lst = proj / "concat-hq.txt"
+    lst.write_text("".join(f"file '{f.as_posix()}'\n" for f in files))
+    run(["ffmpeg", "-v", "error", "-y", "-f", "concat", "-safe", "0", "-i", str(lst), "-c", "copy", str(proj / "tmp-rough-hq.mp4")])
+    replace_into(proj / "tmp-rough-hq.mp4", final)
+    (proj / "rough-hq.txt").write_text(tag)
+    keep = {f.name for f in files}
+    for f in cache.glob("*.mp4"):
+        if f.name not in keep:
+            f.unlink()
+    return final
 
 
 def lines_for_chat(line_times):

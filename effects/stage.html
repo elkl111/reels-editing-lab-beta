@@ -16,7 +16,7 @@
   /* captions */
   .cap { position: absolute; left: 90px; right: 90px; text-align: center; line-height: 1.12;
          font-family: var(--cap-font); font-size: var(--cap-size); font-weight: var(--cap-weight); }
-  .cap .w { display: inline-block; position: relative; margin: 0 0.1em; color: var(--cap-text);
+  .cap .w { display: inline-block; position: relative; margin: 0 0.1em; color: var(--cap-text); letter-spacing: var(--cap-track, 0);
             -webkit-text-stroke: var(--cap-stroke) var(--cap-outline); paint-order: stroke fill;
             text-transform: var(--cap-case); text-shadow: 0 6px 18px var(--shadow); }
   .cap .w.active { color: var(--cap-active); }
@@ -52,7 +52,7 @@
                                border-radius: 0.1em; z-index: -1; transform: rotate(-2.5deg); }
 
   /* ticket-stub label */
-  .label { position: absolute; left: 50%; top: 1500px; width: 820px; box-sizing: border-box; padding: 18px 30px;
+  .label { position: absolute; left: 50%; top: 1360px; width: 820px; box-sizing: border-box; padding: 18px 30px;
            background: var(--label-bg); color: var(--label-text); border-radius: calc(var(--radius) / 2);
            border-top: 3px solid var(--label-text); border-bottom: 3px solid var(--label-text);
            display: flex; justify-content: space-between; align-items: center;
@@ -82,7 +82,9 @@
 </head>
 <body>
 <div id="stage">
+  <div class="layer" id="L-grade"></div>
   <div class="layer" id="L-behind"></div>
+  <div class="layer" id="L-orbit"></div>
   <div class="layer" id="L-statement"></div>
   <div class="layer" id="L-visuals"></div>
   <div class="layer" id="L-captions"></div>
@@ -94,9 +96,14 @@
 let TL = null;
 
 const clamp = (x, a, b) => Math.max(a, Math.min(b, x));
+// Instagram Reels covers these parts of the frame (header, username + caption + audio row, the like /
+// comment / share column). Same numbers as SAFE in tools/lab.py. Graphics stay inside.
+const SAFE_ZONE = { top: 170, bottom: 1470, side: 35, icons_x: 980, icons_y: 1155 };
+window.SAFE_ZONE = SAFE_ZONE;
 const ease = x => 1 - Math.pow(1 - clamp(x, 0, 1), 3);              // ease-out cubic
 const back = x => { x = clamp(x, 0, 1); const c = 1.6; return 1 + (c + 1) * Math.pow(x - 1, 3) + c * Math.pow(x - 1, 2); };
-const esc = s => s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+// no em dashes on screen: a comma does the same job and doesn't read as machine-written
+const esc = s => String(s).replace(/\s*—\s*/g, ', ').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 // *word* → italic emphasis, the brand's roman/italic mix
 const rich = s => esc(s).replace(/\*([^*]+)\*/g, (m, g) => g.split(/\s+/).map(w => `<em>${w}</em>`).join(' '));
 
@@ -149,6 +156,11 @@ window.setup = function (timeline) {
   s.setProperty('--label-bg', col(R.label_bg));
   s.setProperty('--label-text', col(R.label_text));
   window.setupVisuals(TL);
+  // soft dark gradients top and bottom so text reads on any footage (the kit's grade.legibility, 0 = off)
+  const L = ((k.grade || {}).legibility) || 0;
+  document.getElementById('L-grade').innerHTML = L > 0 ? `<div style="position:absolute;inset:0;background:
+    linear-gradient(to bottom, rgba(0,0,0,${(L * 0.55).toFixed(2)}) 0%, rgba(0,0,0,0) 22%, rgba(0,0,0,0) 62%, rgba(0,0,0,${L.toFixed(2)}) 100%)"></div>` : '';
+  s.setProperty('--cap-track', ((k.style || {}).caption_tracking || 0) + 'em');
   return document.fonts.ready.then(() => true);
 };
 
@@ -200,7 +212,15 @@ function renderCaptions(t, hidden) {
     y = (busy.has('top') || (TL.visuals || []).some(v => window.visualUsesTop(v) && t >= v.start - 0.3 && t < v.end + 0.3))
       ? 1920 * 0.86 : Math.max(TL.safe ? TL.safe.face_top - 150 : 300, 120);
   }
-  el.innerHTML = `<div class="cap" style="top:${y}px; transform: translateY(-50%) scale(${0.92 + 0.08 * p}); opacity:${p}">${words}</div>`;
+  if (y > 1920 * 0.8) y = SAFE_ZONE.bottom;                // "the very bottom" = just above Instagram's caption area
+  const blurPop = TL.kit.captions.pop === 'blur' ? `;filter:blur(${((1 - p) * 12).toFixed(1)}px)` : '';
+  el.innerHTML = `<div class="cap" style="top:${y}px; transform: translateY(-50%) scale(${0.92 + 0.08 * p}); opacity:${p}${blurPop}">${words}</div>`;
+  const cap = el.firstElementChild;
+  // low on the screen, a full-width caption runs under the like / comment / share column: narrow it there
+  if (y + cap.offsetHeight / 2 > SAFE_ZONE.icons_y) cap.style.left = cap.style.right = (1080 - SAFE_ZONE.icons_x + 14) + 'px';
+  const half = cap.offsetHeight / 2;
+  const cy = clamp(y, SAFE_ZONE.top + half, SAFE_ZONE.bottom - half);
+  if (cy !== y) cap.style.top = cy + 'px';
   return key;
 }
 
@@ -216,8 +236,16 @@ function renderHook(t) {
       <div class="head">${rich(ev.text)}</div></div>`;
   // sit above the face: the card's bottom ends just above the top of the head when there's room
   const card = el.firstElementChild;
-  let top = 150;
-  if (TL.safe && TL.safe.face_top) top = clamp(TL.safe.face_top - 24 - card.offsetHeight, 60, 150);
+  const minTop = SAFE_ZONE.top + 14;                       // room for the pop-in overshoot and tilt
+  let top = minTop;
+  if (TL.safe && TL.safe.face_top) {
+    const room = TL.safe.face_top - 24 - minTop;
+    if (card.offsetHeight > room) {
+      const sc = Math.max(0.85, room / card.offsetHeight);
+      card.style.transform += ` scale(${sc})`;
+      card.style.transformOrigin = 'top center';
+    } else top = clamp(TL.safe.face_top - 24 - card.offsetHeight, minTop, 260);
+  }
   card.style.top = top + 'px';
   return 'h:' + Math.round(p * 20);
 }
@@ -259,6 +287,25 @@ function renderCover(t) {
   return 'v:1';
 }
 
+function orbitTiles(t, side) {
+  const ev = TL.events.find(e => e.type === 'orbit' && active(e, t));
+  if (!ev || !(TL.reels || []).length) return ['', 'o:-'];
+  const S = TL.safe || {}, n = Math.min(ev.count || 6, TL.reels.length);
+  const cx = ((S.face_left || 300) + (S.face_right || 780)) / 2, cy = ((S.face_top || 420) + (S.face_bottom || 1000)) / 2 + 30;
+  const rx = Math.min(430, cx - 120, 960 - cx), ry = 110, sp = ev.speed || 1.0;
+  const fade = Math.min(ease((t - ev.start) / 0.4), ease((ev.end - t) / 0.3));
+  let html = '', key = 'o';
+  for (let k = 0; k < n; k++) {
+    const a = 2 * Math.PI * k / n + sp * (t - ev.start) - Math.PI / 2, depth = Math.sin(a);
+    if ((side === 'front') !== (depth > 0)) continue;
+    const sc = 0.72 + 0.28 * (depth + 1) / 2, x = cx + rx * Math.cos(a), y = cy + ry * depth;
+    key += k + ':' + Math.round(x) + ',' + Math.round(y) + ';';
+    html += `<div class="orbit-tile" style="left:${x - 95}px;top:${y - 169}px;transform:scale(${sc.toFixed(3)}) rotate(${(Math.cos(a) * 6).toFixed(1)}deg);
+      opacity:${fade};z-index:${Math.round(depth * 100) + 100};background-image:url('${TL.reels[k].thumb_url}')"></div>`;
+  }
+  return [html, key + Math.round(fade * 20)];
+}
+
 function renderBehind(t) {
   const el = document.getElementById('L-behind');
   const ev = TL.events.find(e => e.type === 'behind' && active(e, t));
@@ -293,17 +340,74 @@ function renderBehind(t) {
   return 'b:' + Math.round(p * 20);
 }
 
+// Lists anything visible that sits where Instagram draws its own buttons and text (build.py reports it).
+window.safeAudit = function (t) {
+  const Z = SAFE_ZONE, out = [];
+  const check = (el, what) => {
+    const r = el.getBoundingClientRect();
+    if (r.width < 4 || r.height < 4) return;
+    const op = parseFloat(getComputedStyle(el).opacity), zone = el.closest('.zone');
+    if (op < 0.5 || (zone && parseFloat(zone.style.opacity || 1) < 0.5)) return;   // still popping in or out
+    const tol = 6, why = [];
+    if (r.top < Z.top - tol) why.push(`top edge at y ${Math.round(r.top)} (Instagram's header covers above ${Z.top})`);
+    if (r.bottom > Z.bottom + tol) why.push(`bottom edge at y ${Math.round(r.bottom)} (username and caption cover below ${Z.bottom})`);
+    if (r.left < Z.side - tol || r.right > 1080 - Z.side + tol) why.push('runs off the side');
+    else if (r.right > Z.icons_x + tol && r.bottom > Z.icons_y + tol) why.push(`under the like / comment / share buttons (x ${Math.round(r.right)}, y ${Math.round(r.bottom)})`);
+    if (why.length) out.push(`${t.toFixed(1)}s ${what}: ${why.join('; ')}`);
+  };
+  document.querySelectorAll('#L-captions .cap').forEach(e => check(e, 'caption'));
+  document.querySelectorAll('#L-hook .hook').forEach(e => check(e, 'hook'));
+  document.querySelectorAll('#L-label .label').forEach(e => check(e, 'name label'));
+  document.querySelectorAll('#L-visuals .fit > *').forEach(e => check(e, 'pop-up ' + (e.className || '').split(' ').pop()));
+  return out;
+};
+
+// Framing at time t, mirroring build.py's zoom_filter (steps × punch/close-up ramps).
+function zoomAt(t) {
+  const Z = TL.zoom || {};
+  let base = 1;
+  for (const [a, b, sc] of Z.steps || []) {
+    if (t >= a && t < b) base = sc < 0 ? 1 + 0.05 * (t - a) / Math.max(b - a, 0.1) : sc;
+  }
+  let ramp = 0;
+  for (const p of Z.punches || []) {
+    const [a, b, sc, e] = [p[0], p[1], p[2], p[3] === undefined ? 0.15 : p[3]];
+    if (e <= 0) { if (t >= a && t < b) ramp += sc - 1; }
+    else ramp += (sc - 1) * clamp((t - a) / e, 0, 1) * clamp((b - t) / e, 0, 1);
+  }
+  return Math.max(1, base) * (1 + ramp);
+}
+function zoomedSafe(s, z, fy) {
+  if (z <= 1.001) return Object.assign({}, s);
+  const top = fy * (1920 - 1920 / z), left = (1080 - 1080 / z) / 2;
+  const Y = y => (y - top) * z, X = x => (x - left) * z, o = Object.assign({}, s);
+  if (s.face_top != null) o.face_top = Y(s.face_top);
+  if (s.face_bottom != null) o.face_bottom = Y(s.face_bottom);
+  if (s.face_left != null) o.face_left = X(s.face_left);
+  if (s.face_right != null) o.face_right = X(s.face_right);
+  return o;
+}
+
 // Draws the frame for time t. Returns a key: identical keys = identical frames (the renderer reuses them).
 window.renderAt = function (t, layer) {
+  // where the face really is at time t: punch-ins and close-ups make it bigger, so graphics move with it
+  if (TL.safe0 === undefined) TL.safe0 = TL.safe ? Object.assign({}, TL.safe) : null;
+  if (TL.safe0 && TL.zoom) TL.safe = zoomedSafe(TL.safe0, zoomAt(t), TL.zoom.face_y || 0.36);
   if (layer === 'behind') {
     ['L-statement', 'L-visuals', 'L-captions', 'L-hook', 'L-label', 'L-cover'].forEach(id => document.getElementById(id).innerHTML = '');
-    return renderBehind(t);
+    document.getElementById('L-grade').style.display = 'none';
+    const [oh, ok] = orbitTiles(t, 'back');
+    document.getElementById('L-orbit').innerHTML = oh;
+    return renderBehind(t) + '|' + ok;
   }
+  document.getElementById('L-grade').style.display = '';
   document.getElementById('L-behind').innerHTML = '';
+  const [ofh, ofk] = orbitTiles(t, 'front');
+  document.getElementById('L-orbit').innerHTML = ofh;
   const [sk, covering] = renderStatement(t);
   const hide = covering && TL.kit.rules.captions_hidden_during_statement;
   const vk = covering ? (document.getElementById('L-visuals').innerHTML = '', 'v:-') : window.renderVisuals(t);
-  return [sk, vk, renderCaptions(t, hide), renderHook(t), renderLabel(t), renderCover(t)].join('|');
+  return [sk, vk, ofk, renderCaptions(t, hide), renderHook(t), renderLabel(t), renderCover(t)].join('|');
 };
 </script>
 </body>

@@ -95,7 +95,8 @@
   "zoom": {
     "jump": 1.05,
     "punch": 1.1,
-    "face_y": 0.36
+    "face_y": 0.36,
+    "close": 1.5
   },
   "sfx": {
     "palette": "clicky",
@@ -106,5 +107,13 @@
     "motion": "gentle",
     "icon_stroke": 1.5,
     "density": "calm"
+  },
+  "grade": {
+    "contrast": 1.02,
+    "saturation": 0.95,
+    "brightness": 0.01,
+    "warmth": 0.0,
+    "vignette": 0.1,
+    "legibility": 0.2
   }
 }

@@ -9,11 +9,14 @@ Everything happens in this chat. Talk like an editor: short updates, no jargon, 
 
 ## 1. Transcribe
 
-- The clip is the newest video in `inbox/` unless they drag one in or name one. If several are new, ask which.
+- The clip is the newest video in `inbox/` unless they drag one in or name one.
+- **Several clips for one reel** (they filmed it in parts or in several takes, or say "these 3 clips"): pass them all, in the order they were filmed (oldest first): `uv run tools/transcribe.py "<clip 1>" "<clip 2>" … --name <name>`. They're joined into one transcript, and `lines.md` marks where each clip starts (`── clip 2: … ──`), so you pick the best take of each line across all of them. If several new clips are in `inbox/` and it's unclear whether they belong together, ask in one line.
 - `transcribe.py` checks the clip first. If it prints `PROBLEM:` lines and `INTAKE=refused` (horizontal, too long, no sound), pass the message on kindly and stop. `NOTE:` lines (HDR converted, long clip) can be mentioned in one short line.
 - Tell them: "Transcribing now, a few seconds."
 - `uv run tools/transcribe.py "<clip>" --name <working-name>`
-- Read `brand/preferences.md` if it exists.
+- Read `brand/preferences.md` and `brand/names.txt` if they exist.
+
+**Misheard names.** The transcriber doesn't know brand and tool names, so it writes what it heard: "Claude" often comes out as "cloud" or "clawed", "Skool" as "school", "ChatGPT" as "chat GPT", and the user's own name or offer can come out wrong too. Scan `lines.md` for these. Fix them in `cut.json` text and, at the build, in `build.json` → `"spell"` (that's what the captions use). Only fix mis-hearings, never their wording. When you learn a name they use, add it to `brand/names.txt` (one per line) so the next reel gets it right.
 
 The transcriber (Parakeet) writes down exactly what was said, **including restarts said without a pause** ("while most of the pe… while most of the people"). Every attempt is in the transcript, so every attempt can be cut.
 
@@ -91,8 +94,13 @@ When the rough cut is locked, build straight away. Don't ask for approval.
    - **cover:** `"cover": {"eyebrow": "...", "text": "..."}`, a clearer 3–6 word title that names the topic (`hooks` skill, B2).
    - **label** (name ✳ what they do): **not by default.** Add it only when the reel is about them: they introduce themselves ("I'm…", "if you're new here…"), tell their own story, or the user asks for it. Use `{"type": "label", "at_line": n}` on that line. If the kit's `label` still says YOUR NAME / WHAT YOU TEACH, ask them once for the wording (short, max ~22 characters per side) and save it in their kit.
    - **statement** (big text moment): a 1.6-second full-screen slam on the single strongest idea, rewritten to 2–4 punchy words with one `*emphasis*` word. Time it with `"word": i` on the word where the idea lands (for example "work" in "you can work across them"), not on the whole line. At most 2 per reel, never in the first 5 seconds, never back to back. With intensity `clean`, skip it. It covers the speaker, so keep it rare.
+   - **spell** (captions): `{"<word index>": "Claude"}` for every misheard name. `""` folds a word into the one before: "Chat" "GPT" → `{"40": "ChatGPT", "41": ""}`.
    - **highlight_words:** about one word every 3rd caption, on the nouns and numbers that carry the point (word indexes from `transcript.json`). Never filler words.
    - **visuals** (pop-up explainer graphics): plan them with the `visuals` skill, at the kit's density. At `busy`, this is the main layer of the edit.
+   - **close-ups** (studio-style): `{"line": n, "close": true}` in `zooms` cuts straight to a tighter shot (kit `zoom.close`, about 1.5×) for that line.
+     - Alternate wide and close on emotional or important lines, at most every other section.
+     - Zooms are cut from the 4K original when the source is 4K, so they stay sharp. The first build takes about 30 s longer.
+     - Graphics automatically move with the bigger face during close-ups.
    - **zooms:** 1–3 punch-ins, `{"line": n}`, on the lines that land the point (a promise, a number, a turn). Never on the hook line or a statement line. Jump zooms at cuts happen automatically (kit `zoom.jump`).
    - **behind** (text or a picture behind the speaker, with them in front, cut out by Apple Vision): at most 1–2 per reel, on a key noun or a reveal. `{"type": "behind", "line": n, "text": "One *folder*"}` puts giant words on the wall at head height (1–3 words read best). Add `"image": "path/to/file.jpg"` to replace the wall with a meme, screenshot or B-roll still they gave you, or a file in `assets/`. It costs about 20 seconds of extra build time per moment.
    - **Sound effects** are automatic from the kit's **sound set** (`"sfx": {"palette": "soft"}`; sets are in `sfx/palettes.json`):
@@ -118,9 +126,10 @@ When the rough cut is locked, build straight away. Don't ask for approval.
   - quieter: lower `sfx.volume_db` by 3
 - The build prints `SOUNDS=set: soft; soft_pop ×3, tick ×2…`. Mention the set in your report, so they know what to ask for by name.
 
-3. `uv run tools/build.py projects/<name>` renders `final.mp4` (about 30 seconds for a 50-second reel) and opens it.
-4. Check before handing back: grab frames at the hook, any label and each statement (`ffmpeg -ss <t> -i final.mp4 -frames:v 1 …`), look at them, and fix anything off-screen, unreadable or covering the face.
-5. Tell them in two or three lines what you did, and that they can ask for changes ("no hook", "different big moment", "calmer"). For example:
+3. `uv run tools/build.py projects/<name>` renders `final.mp4` (about 30 seconds for a 50-second reel) and opens it. The sound is cleaned and levelled for Instagram automatically (`LOUDNESS=` line; about -14 LUFS).
+4. Also look at `cuts.png`: the frames on either side of every cut. Each "after" frame must show the new shot cleanly. The build also makes a small `final-phone.mp4` for checking on a phone; mention it.
+5. Check before handing back: grab frames at the hook, any label and each statement (`ffmpeg -ss <t> -i final.mp4 -frames:v 1 …`), look at them, and fix anything off-screen, unreadable or covering the face. Fix every `SAFE ZONE:` line the build prints (a graphic under Instagram's username, caption or buttons) and rebuild. Then `uv run tools/verify.py projects/<name> --video final.mp4` (words, pauses, loudness and safe zone) and fix what it lists.
+6. Tell them in two or three lines what you did, and that they can ask for changes ("no hook", "different big moment", "calmer"). For example:
    > Hook: "Build your *business brain*". Or say **hook 2**: "…" / **hook 3**: "…".
    > One big moment on "work across them", 4 highlighted words, 2 punch-ins. Sounds: the soft set (soft pop, swoosh, tick).
 

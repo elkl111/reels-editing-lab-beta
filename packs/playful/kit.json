@@ -99,7 +99,8 @@
   "zoom": {
     "jump": 1.07,
     "punch": 1.14,
-    "face_y": 0.36
+    "face_y": 0.36,
+    "close": 1.5
   },
   "sfx": {
     "palette": "playful",
@@ -116,5 +117,13 @@
     "highlight": "1 key word every 3-4 chunks",
     "label": "not by default: only when the speaker introduces themselves or tells their own story",
     "captions_hidden_during_statement": true
+  },
+  "grade": {
+    "contrast": 1.02,
+    "saturation": 1.05,
+    "brightness": 0.02,
+    "warmth": 0.03,
+    "vignette": 0.0,
+    "legibility": 0.2
   }
 }
